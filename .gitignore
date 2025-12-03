@@ -53,6 +53,7 @@ yarn-error.log*
 *.sqlite
 *.sqlite-journal
 *.db
+*.sql
 
 # OS
 Thumbs.db
@@ -63,3 +64,13 @@ Homestead.json
 Homestead.yaml
 auth.json
 
+# Backup files
+*.backup
+*.bak
+*.apk
+
+# Temporary files
+*.tmp
+*.temp
+*~
+datetime,
