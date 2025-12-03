@@ -12,7 +12,7 @@ Next.js запущен в production режиме (`next start`), поэтому
 pkill -f "next start"
 
 # 2. Перейдите в директорию фронтенда
-cd /var/www/watchapps/watchapps-frontend
+cd /var/www/watchapps/frontend
 
 # 3. Пересоберите приложение
 npm run build
@@ -30,7 +30,7 @@ next start -p 3000
 pkill -f "next start"
 
 # 2. Перейдите в директорию фронтенда
-cd /var/www/watchapps/watchapps-frontend
+cd /var/www/watchapps/frontend
 
 # 3. Запустите в dev режиме (изменения применяются автоматически)
 npm run dev

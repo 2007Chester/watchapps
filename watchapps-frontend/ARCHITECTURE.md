@@ -1,3 +1,0 @@
-## Frontend Architecture
-- Next.js App Router
-- Auth pages...

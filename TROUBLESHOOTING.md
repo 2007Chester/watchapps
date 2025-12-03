@@ -23,7 +23,7 @@ php artisan serve
 Убедитесь, что `NEXT_PUBLIC_API_URL` не установлена, или установлена правильно:
 
 ```bash
-# В watchapps-frontend/.env.local (если есть)
+# В frontend/.env.local (если есть)
 NEXT_PUBLIC_API_URL=http://localhost:8000/api
 ```
 

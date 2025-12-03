@@ -97,7 +97,7 @@ WatchApps — это маркетплейс для циферблатов и п�
 
 ### 2. Frontend (Next.js)
 
-**Расположение**: `/var/www/watchapps/watchapps-frontend`
+**Расположение**: `/var/www/watchapps/frontend`
 
 **Технологии**: Next.js 14, React 18, TypeScript, TailwindCSS
 
@@ -110,7 +110,7 @@ WatchApps — это маркетплейс для циферблатов и п�
 
 **Структура**:
 ```
-watchapps-frontend/
+frontend/
 ├── app/
 │   ├── dev/              # Dev Console (консоль разработчика)
 │   │   ├── login/        # Вход для разработчиков
@@ -391,7 +391,7 @@ php artisan serve
 ### Frontend
 
 ```bash
-cd /var/www/watchapps/watchapps-frontend
+cd /var/www/watchapps/frontend
 
 # Установка зависимостей
 npm install
@@ -764,7 +764,7 @@ php artisan serve --host=127.0.0.1 --port=8000
 #### Next.js Frontend
 
 ```bash
-cd /var/www/watchapps/watchapps-frontend
+cd /var/www/watchapps/frontend
 npm run build
 npm start
 ```
@@ -827,7 +827,7 @@ BACKEND_URL=http://127.0.0.1:8000
 │           └── public/
 │               └── uploads/    # Загруженные файлы
 │
-├── watchapps-frontend/        # Next.js Frontend
+├── frontend/                  # Next.js Frontend
 │   ├── app/                   # Next.js App Router
 │   │   ├── dev/               # Dev Console
 │   │   ├── api/               # Next.js API routes (прокси)
