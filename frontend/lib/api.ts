@@ -191,13 +191,24 @@ export async function apiFetch(path: string, options: any = {}) {
   // Другие ошибки
   if (!res.ok) {
     let message = "Unknown error";
+    let errors: any = null;
 
     try {
       const data = await res.json();
       message = data.message || message;
+      // Для ошибок валидации (422) сохраняем детали ошибок
+      if (res.status === 422 && data.errors) {
+        errors = data.errors;
+      }
     } catch {}
 
-    throw new Error(message);
+    // Создаем объект ошибки с дополнительными полями
+    const error: any = new Error(message);
+    error.status = res.status;
+    if (errors) {
+      error.errors = errors;
+    }
+    throw error;
   }
 
   // Успешный ответ JSON

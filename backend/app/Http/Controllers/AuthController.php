@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
 use App\Models\EmailVerificationToken;
+use App\Mail\VerifyEmail;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
@@ -74,6 +75,33 @@ class AuthController extends Controller
         // Создаём токен
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        // Отправляем письмо для подтверждения email, если email не подтверждён
+        if (!$user->email_verified_at) {
+            try {
+                // Удаляем старые токены
+                EmailVerificationToken::where('user_id', $user->id)->delete();
+
+                // Генерируем новый токен
+                $verificationToken = Str::random(64);
+
+                EmailVerificationToken::create([
+                    'user_id' => $user->id,
+                    'token' => $verificationToken,
+                    'created_at' => now(),
+                ]);
+
+                // Определяем URL для подтверждения
+                $baseUrl = $this->getBaseUrl($request);
+                $verificationUrl = "{$baseUrl}/verify-email?token={$verificationToken}";
+
+                // Отправляем письмо
+                Mail::to($user->email)->send(new VerifyEmail($user, $verificationUrl));
+            } catch (\Exception $e) {
+                \Log::error('Failed to send verification email on registration: ' . $e->getMessage());
+                // Не прерываем регистрацию, если не удалось отправить письмо
+            }
+        }
+
         return response()->json([
             'user' => [
                 'id'           => $user->id,
@@ -133,6 +161,12 @@ class AuthController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
+        // Получаем URL логотипа, если он есть
+        $logoUrl = null;
+        if ($user->logo) {
+            $logoUrl = $this->getFileUrl($user->logo->filename);
+        }
+
         return response()->json([
             'id'           => $user->id,
             'name'         => $user->name,
@@ -140,10 +174,57 @@ class AuthController extends Controller
             'roles'        => $user->getRoleNames(),
             'primary_role' => $user->primary_role,
             'brand_name'   => $user->brand_name,
+            'logo_upload_id' => $user->logo_upload_id,
+            'logo_url'     => $logoUrl,
             'onboarding_completed' => $user->onboarding_completed,
             'verified'     => (bool)$user->email_verified_at,
             'email_verified' => (bool)$user->email_verified_at,
         ]);
+    }
+
+    /**
+     * Получить URL для файла с правильным протоколом
+     */
+    private function getFileUrl(string $filename): string
+    {
+        $request = request();
+        
+        // Проверяем заголовки прокси для определения реального хоста
+        $host = $request->header('X-Forwarded-Host') 
+            ?: $request->header('Host') 
+            ?: $request->getHost();
+        
+        // Проверяем Origin или Referer для определения домена фронтенда
+        $origin = $request->header('Origin') ?: $request->header('Referer');
+        if ($origin) {
+            $parsed = parse_url($origin);
+            if (isset($parsed['host'])) {
+                $host = $parsed['host'];
+            }
+        }
+        
+        // Определяем протокол
+        $protocol = 'https';
+        if ($request->header('X-Forwarded-Proto') === 'https' || 
+            $request->isSecure() ||
+            str_contains($host, 'watchapps.ru')) {
+            $protocol = 'https';
+        } elseif ($request->header('X-Forwarded-Proto') === 'http') {
+            $protocol = 'http';
+        }
+        
+        // Для production доменов всегда используем правильный домен
+        if (str_contains($host, 'dev.watchapps.ru')) {
+            $baseUrl = 'https://dev.watchapps.ru';
+        } elseif (str_contains($host, 'watchapps.ru')) {
+            $baseUrl = 'https://watchapps.ru';
+        } else {
+            // Для локальной разработки используем текущий хост
+            $port = $request->getPort();
+            $baseUrl = $protocol . '://' . $host . ($port && $port !== 80 && $port !== 443 ? ':' . $port : '');
+        }
+        
+        return $baseUrl . '/storage/uploads/' . $filename;
     }
 
     /**
@@ -205,41 +286,138 @@ class AuthController extends Controller
             return response()->json(['message' => 'Email уже подтверждён'], 422);
         }
 
+        // Удаляем старые токены
         EmailVerificationToken::where('user_id', $user->id)->delete();
 
+        // Генерируем новый токен
         $token = Str::random(64);
 
         EmailVerificationToken::create([
             'user_id' => $user->id,
             'token' => $token,
+            'created_at' => now(),
         ]);
 
-        $verifyLink = "https://watchapps.ru/verify-email?token={$token}";
+        // Определяем URL для подтверждения
+        $baseUrl = $this->getBaseUrl($request);
+        $verificationUrl = "{$baseUrl}/verify-email?token={$token}";
 
-        Mail::raw("Перейдите по ссылке чтобы подтвердить email:\n\n{$verifyLink}", function($msg) use ($user) {
-            $msg->to($user->email)
-                ->subject("Подтверждение email — WatchApps");
-        });
-
-        return response()->json(['message' => 'Письмо отправлено']);
+        // Отправляем письмо
+        try {
+            Mail::to($user->email)->send(new VerifyEmail($user, $verificationUrl));
+            
+            return response()->json([
+                'message' => 'Письмо с подтверждением отправлено на ваш email',
+                'success' => true
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Failed to send verification email: ' . $e->getMessage());
+            
+            // Определяем тип ошибки для более понятного сообщения
+            $errorMessage = $e->getMessage();
+            $userMessage = 'Не удалось отправить письмо. Попробуйте позже.';
+            
+            // Проверяем на ошибку аутентификации mail.ru
+            if (str_contains($errorMessage, 'parol prilozheniya') || 
+                str_contains($errorMessage, 'Application password is REQUIRED')) {
+                $userMessage = 'Ошибка: Mail.ru требует пароль приложения. Обратитесь к администратору.';
+            } elseif (str_contains($errorMessage, 'Authentication failed') || 
+                      str_contains($errorMessage, '535')) {
+                $userMessage = 'Ошибка аутентификации SMTP. Проверьте настройки почты.';
+            } elseif (str_contains($errorMessage, 'Connection') || 
+                      str_contains($errorMessage, 'timeout')) {
+                $userMessage = 'Не удалось подключиться к SMTP серверу. Проверьте настройки.';
+            }
+            
+            return response()->json([
+                'message' => $userMessage,
+                'error' => config('app.debug') ? $errorMessage : null
+            ], 500);
+        }
     }
 
-    public function verifyEmail($token)
+    /**
+     * Получить базовый URL для фронтенда
+     */
+    private function getBaseUrl(Request $request): string
+    {
+        $host = $request->header('X-Forwarded-Host') 
+            ?: $request->header('Host') 
+            ?: $request->getHost();
+        
+        $origin = $request->header('Origin') ?: $request->header('Referer');
+        if ($origin) {
+            $parsed = parse_url($origin);
+            if (isset($parsed['host'])) {
+                $host = $parsed['host'];
+            }
+        }
+        
+        $protocol = 'https';
+        if ($request->header('X-Forwarded-Proto') === 'https' || 
+            $request->isSecure() ||
+            str_contains($host, 'watchapps.ru')) {
+            $protocol = 'https';
+        } elseif ($request->header('X-Forwarded-Proto') === 'http') {
+            $protocol = 'http';
+        }
+        
+        if (str_contains($host, 'dev.watchapps.ru')) {
+            return 'https://dev.watchapps.ru';
+        } elseif (str_contains($host, 'watchapps.ru')) {
+            return 'https://watchapps.ru';
+        } else {
+            $port = $request->getPort();
+            return $protocol . '://' . $host . ($port && $port !== 80 && $port !== 443 ? ':' . $port : '');
+        }
+    }
+
+    public function verifyEmail(Request $request, $token)
     {
         $record = EmailVerificationToken::where('token', $token)->first();
 
         if (!$record) {
-            return response()->json(['message' => 'Неверный или истекший токен'], 400);
+            // Редирект на фронтенд с ошибкой
+            $baseUrl = $this->getBaseUrl($request);
+            return redirect("{$baseUrl}/verify-email?error=invalid_token");
+        }
+
+        // Проверяем, не истек ли токен (24 часа)
+        if ($record->created_at) {
+            // Преобразуем в Carbon, если это строка
+            $createdAt = is_string($record->created_at) 
+                ? \Carbon\Carbon::parse($record->created_at) 
+                : $record->created_at;
+            
+            $expiresAt = $createdAt->copy()->addHours(24);
+            if ($expiresAt->isPast()) {
+                $record->delete();
+                $baseUrl = $this->getBaseUrl($request);
+                return redirect("{$baseUrl}/verify-email?error=expired_token");
+            }
         }
 
         $user = $record->user;
 
+        // Если email уже подтверждён
+        if ($user->email_verified_at) {
+            $record->delete();
+            $baseUrl = $this->getBaseUrl($request);
+            return redirect("{$baseUrl}/verify-email?success=already_verified");
+        }
+
+        // Подтверждаем email
         $user->email_verified_at = now();
         $user->save();
 
         $record->delete();
 
-        return response()->json(['message' => 'Email подтверждён!']);
+        // Редирект на фронтенд с успехом
+        $baseUrl = $this->getBaseUrl($request);
+        $isDev = str_contains($baseUrl, 'dev.watchapps.ru');
+        $redirectUrl = $isDev ? "{$baseUrl}/dev/dashboard" : "{$baseUrl}/";
+        
+        return redirect("{$baseUrl}/verify-email?success=true&redirect=" . urlencode($redirectUrl));
     }
 
     /**

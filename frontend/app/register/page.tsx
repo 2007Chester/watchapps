@@ -10,6 +10,7 @@ export default function RegisterUserPage() {
 
   const [name, setName] = useState("");
   const [nameError, setNameError] = useState("");
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
   const [email, setEmail] = useState("");
   const [emailStatus, setEmailStatus] = useState<EmailStatus>("idle");
@@ -29,6 +30,32 @@ export default function RegisterUserPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
   const [attempted, setAttempted] = useState(false);
+
+  // Проверяем, авторизован ли пользователь
+  useEffect(() => {
+    async function checkAuth() {
+      const token = typeof window !== 'undefined' ? localStorage.getItem("wa_token") : null;
+      if (!token) {
+        setCheckingAuth(false);
+        return;
+      }
+
+      try {
+        const user = await apiFetch("/auth/user");
+        if (user) {
+          // Если пользователь авторизован, редиректим на главную
+          window.location.href = "/";
+        }
+      } catch (error) {
+        // Если ошибка, значит не авторизован - продолжаем показывать форму регистрации
+        console.log("User not authenticated");
+      } finally {
+        setCheckingAuth(false);
+      }
+    }
+
+    checkAuth();
+  }, []);
 
   // email format check
   const emailFormatValid = useMemo(() => {
@@ -175,43 +202,56 @@ export default function RegisterUserPage() {
 
   const emailColor =
     emailStatus === "checking"
-      ? "text-blue-400"
+      ? "text-blue-600 dark:text-blue-400"
       : emailStatus === "ok"
-      ? "text-emerald-400"
+      ? "text-emerald-600 dark:text-emerald-400"
       : emailStatus === "error"
-      ? "text-red-400"
-      : "text-white/40";
+      ? "text-red-600 dark:text-red-400"
+      : "text-gray-500 dark:text-gray-400";
 
   const passColor =
     hasPasswordError && passwordMessage
-      ? "text-red-400"
+      ? "text-red-600 dark:text-red-400"
       : passwordMessage === "Пароли совпадают ✅"
-      ? "text-emerald-400"
-      : "text-white/40";
+      ? "text-emerald-600 dark:text-emerald-400"
+      : "text-gray-500 dark:text-gray-400";
+
+  if (checkingAuth) {
+    return (
+      <div className="flex justify-center py-4">
+        <div className="max-w-md w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-8 shadow-xl">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p className="mt-4 text-gray-600 dark:text-gray-400">Проверка авторизации...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#05060A] flex justify-center items-center p-6">
-      <div className="max-w-md w-full bg-[#151823] border border-white/5 rounded-3xl p-8 shadow-xl">
-        <h1 className="text-3xl text-white text-center mb-6 font-semibold">
+    <div className="flex justify-center py-4">
+      <div className="max-w-md w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-8 shadow-xl">
+        <h1 className="text-3xl text-gray-900 dark:text-white text-center mb-6 font-semibold">
           Регистрация пользователя
         </h1>
 
         {/* NAME */}
-        <label className="text-white/60 text-sm">Имя</label>
+        <label className="text-gray-700 dark:text-gray-300 text-sm">Имя</label>
         <input
-          className="mt-1 w-full bg-[#10121A] text-white border border-white/10 rounded-xl px-4 py-3 focus:border-blue-500 outline-none"
+          className="mt-1 w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Ваше имя"
         />
-        {nameError && <p className="text-red-400 text-xs mt-1">{nameError}</p>}
+        {nameError && <p className="text-red-600 dark:text-red-400 text-xs mt-1">{nameError}</p>}
 
         {/* EMAIL */}
         <div className="mt-4">
-          <label className="text-white/60 text-sm">Email</label>
+          <label className="text-gray-700 dark:text-gray-300 text-sm">Email</label>
           <input
             type="email"
-            className="mt-1 w-full bg-[#10121A] text-white border border-white/10 rounded-xl px-4 py-3 focus:border-blue-500 outline-none"
+            className="mt-1 w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors"
             value={email}
             onChange={(e) => {
               setEmail(e.target.value);
@@ -224,11 +264,11 @@ export default function RegisterUserPage() {
 
         {/* PASSWORD */}
         <div className="mt-4">
-          <label className="text-white/60 text-sm">Пароль</label>
+          <label className="text-gray-700 dark:text-gray-300 text-sm">Пароль</label>
           <div className="relative">
             <input
               type={showPassword ? "text" : "password"}
-              className="mt-1 w-full bg-[#10121A] text-white border border-white/10 rounded-xl px-4 py-3 pr-12 focus:border-blue-500 outline-none"
+              className="mt-1 w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 pr-12 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Минимум 6 символов"
@@ -236,7 +276,7 @@ export default function RegisterUserPage() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             >
               {showPassword ? "🙈" : "👁️"}
             </button>
@@ -245,11 +285,11 @@ export default function RegisterUserPage() {
 
         {/* PASSWORD CONFIRM */}
         <div className="mt-4">
-          <label className="text-white/60 text-sm">Подтверждение пароля</label>
+          <label className="text-gray-700 dark:text-gray-300 text-sm">Подтверждение пароля</label>
           <div className="relative">
             <input
               type={showPassword2 ? "text" : "password"}
-              className="mt-1 w-full bg-[#10121A] text-white border border-white/10 rounded-xl px-4 py-3 pr-12 focus:border-blue-500 outline-none"
+              className="mt-1 w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 pr-12 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors"
               value={password2}
               onChange={(e) => setPassword2(e.target.value)}
               placeholder="Повторите пароль"
@@ -257,7 +297,7 @@ export default function RegisterUserPage() {
             <button
               type="button"
               onClick={() => setShowPassword2(!showPassword2)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             >
               {showPassword2 ? "🙈" : "👁️"}
             </button>
@@ -267,7 +307,7 @@ export default function RegisterUserPage() {
 
         {/* TERMS */}
         <div className="mt-5">
-          <label className="flex gap-3 text-white/60 text-sm cursor-pointer">
+          <label className="flex gap-3 text-gray-700 dark:text-gray-300 text-sm cursor-pointer">
             <input
               type="checkbox"
               checked={acceptTerms}
@@ -276,14 +316,14 @@ export default function RegisterUserPage() {
             />
             <span>
               Я принимаю{" "}
-              <a href="/terms" className="text-blue-400 underline">
+              <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline transition-colors">
                 условия сервиса
               </a>
             </span>
           </label>
 
           {attempted && termsError && (
-            <p className="text-red-400 text-xs mt-1">{termsError}</p>
+            <p className="text-red-600 dark:text-red-400 text-xs mt-1">{termsError}</p>
           )}
         </div>
 
@@ -291,17 +331,17 @@ export default function RegisterUserPage() {
         <button
           onClick={register}
           disabled={!canSubmit}
-          className={`mt-6 w-full py-3 rounded-xl text-white font-semibold ${
+          className={`mt-6 w-full py-3 rounded-xl text-white font-semibold transition-all ${
             canSubmit
-              ? "bg-blue-600 hover:bg-blue-500 active:scale-95"
-              : "bg-white/10 text-white/40 cursor-not-allowed"
+              ? "bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 active:scale-95 shadow-md hover:shadow-lg"
+              : "bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"
           }`}
         >
           {loading ? "Создаём аккаунт…" : "Зарегистрироваться"}
         </button>
 
         {success && (
-          <p className="text-emerald-400 text-center text-sm mt-3">
+          <p className="text-emerald-600 dark:text-emerald-400 text-center text-sm mt-3">
             {success}
           </p>
         )}

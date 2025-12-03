@@ -11,23 +11,55 @@ export default async function ProfilePage() {
   }
 
   return (
-    <div className="mx-auto mt-8 max-w-md p-6 rounded-xl bg-gray-900 border border-gray-700 text-white">
-      <h1 className="text-2xl font-semibold">Профиль</h1>
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-8 shadow-xl">
+        <h1 className="text-3xl font-semibold text-gray-900 dark:text-white mb-8">
+          Личная информация
+        </h1>
 
-      <div className="mt-4 space-y-2 text-gray-300">
-        <p><strong>Имя:</strong> {user.name}</p>
-        <p><strong>Email:</strong> {user.email}</p>
-        <p><strong>Роль:</strong> {user.role}</p>
+        <div className="space-y-6">
+          {/* Имя */}
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">
+              Имя
+            </label>
+            <div className="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white">
+              {user.name}
+            </div>
+          </div>
+
+          {/* Email */}
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">
+              Email
+            </label>
+            <div className="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white">
+              {user.email}
+            </div>
+          </div>
+
+          {/* Роль */}
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">
+              Роль
+            </label>
+            <div className="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3">
+              <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                {user.role}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <form action={logoutAction} className="mt-8">
+          <button
+            type="submit"
+            className="w-full py-3 rounded-xl text-white font-semibold bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 transition-all shadow-md hover:shadow-lg active:scale-95"
+          >
+            Выйти из аккаунта
+          </button>
+        </form>
       </div>
-
-      <form action={logoutAction}>
-        <button
-          type="submit"
-          className="mt-6 w-full rounded-lg bg-red-600 px-4 py-2 font-semibold"
-        >
-          Выйти из аккаунта
-        </button>
-      </form>
     </div>
   );
 }

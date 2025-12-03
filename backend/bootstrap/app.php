@@ -14,6 +14,7 @@ return Application::configure(dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->group('api', [
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \App\Http\Middleware\SetLocale::class,
         ]);
         
         // Регистрация middleware для ролей

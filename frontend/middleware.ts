@@ -15,10 +15,17 @@ export function middleware(req: NextRequest) {
       "/dev/login",
       "/dev/register",
       "/dev/dashboard",
+      "/verify-email", // Страница подтверждения email
+      "/verify", // Страницы верификации
     ];
 
     // Разрешаем вложенные dev маршруты /dev/watchfaces/*
     if (path.startsWith("/dev/watchfaces")) {
+      return NextResponse.next();
+    }
+
+    // Разрешаем страницы верификации
+    if (path.startsWith("/verify")) {
       return NextResponse.next();
     }
 
