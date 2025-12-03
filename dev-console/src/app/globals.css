@@ -1,0 +1,44 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-slate-950 text-slate-50;
+}
+
+.card {
+  @apply bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 focus-visible:ring-sky-500 disabled:opacity-50 disabled:pointer-events-none;
+}
+
+.btn-primary {
+  @apply btn bg-sky-500 hover:bg-sky-400 text-slate-950;
+}
+
+.btn-outline {
+  @apply btn border border-slate-700 bg-transparent hover:bg-slate-800;
+}
+
+input, select, textarea {
+  @apply bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950;
+}
+
+table {
+  @apply w-full text-sm;
+}
+
+th, td {
+  @apply px-3 py-2 text-left;
+}
+
+th {
+  @apply text-slate-400 font-medium border-b border-slate-800;
+}
+
+tr:nth-child(even) td {
+  @apply bg-slate-900/40;
+}
