@@ -60,6 +60,20 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/', [DeveloperOnboardingController::class, 'show']);
             Route::put('/', [DeveloperOnboardingController::class, 'update']);
             Route::post('/complete', [DeveloperOnboardingController::class, 'complete']);
+            Route::post('/change-password', [DeveloperOnboardingController::class, 'changePassword']);
+        });
+
+    /*
+    |--------------------------------------------------------------------------
+    | PAYMENT INFO (доступно без verified, но только для developer)
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:developer')
+        ->prefix('dev/payment')
+        ->group(function () {
+            Route::get('/', [DeveloperOnboardingController::class, 'getPaymentInfo']);
+            Route::put('/', [DeveloperOnboardingController::class, 'updatePaymentInfo']);
+            Route::post('/send-for-approval', [DeveloperOnboardingController::class, 'sendPaymentForApproval']);
         });
 });
 
@@ -81,6 +95,7 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::post('/upload',   [UploadController::class, 'store']);
+    Route::post('/upload/parse-apk', [UploadController::class, 'parseApk']);
     Route::get('/uploads',   [UploadController::class, 'index']);
 
     /*
@@ -98,6 +113,9 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
     Route::middleware(['auth:sanctum', 'verified', 'role:developer'])
      ->prefix('dev')
      ->group(function () {
+
+              // Категории
+              Route::get('/categories', [\App\Http\Controllers\CategoryController::class, 'index']);
 
               // Статистика
               Route::get('/watchfaces/{id}/stats', [WatchfaceStatsController::class, 'stats']);

@@ -21,6 +21,7 @@ class WatchfaceService
             'description'    => $data['description'] ?? null,
             'price'          => $data['price'],
             'discount_price' => $data['discount_price'] ?? null,
+            'discount_start_at' => $data['discount_start_at'] ?? null,
             'discount_end_at'=> $data['discount_end_at'] ?? null,
             'is_free'        => $data['is_free'] ?? false,
             'type'           => $data['type'],

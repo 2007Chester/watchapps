@@ -21,6 +21,11 @@ class User extends Authenticatable
         'brand_name',
         'logo_upload_id',
         'onboarding_completed',
+        'developer_verified_by_admin',
+        'payment_details',
+        'contract_upload_id',
+        'payment_sent_for_approval',
+        'payment_approved_by_admin',
     ];
 
     /**
@@ -37,6 +42,10 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'onboarding_completed' => 'boolean',
+        'developer_verified_by_admin' => 'boolean',
+        'payment_details' => 'array',
+        'payment_sent_for_approval' => 'boolean',
+        'payment_approved_by_admin' => 'boolean',
     ];
 
     /**
@@ -85,6 +94,14 @@ class User extends Authenticatable
     public function logo()
     {
         return $this->belongsTo(Upload::class, 'logo_upload_id');
+    }
+
+    /**
+     * Связь: пользователь → договор (upload)
+     */
+    public function contract()
+    {
+        return $this->belongsTo(Upload::class, 'contract_upload_id');
     }
 
     /**

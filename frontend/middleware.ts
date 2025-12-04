@@ -15,6 +15,8 @@ export function middleware(req: NextRequest) {
       "/dev/login",
       "/dev/register",
       "/dev/dashboard",
+      "/dev/forgot-password",
+      "/dev/reset-password",
       "/verify-email", // Страница подтверждения email
       "/verify", // Страницы верификации
     ];

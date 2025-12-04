@@ -29,7 +29,7 @@ class WatchfaceController extends Controller
         $developerId = $request->user()->id;
 
         $items = Watchface::where('developer_id', $developerId)
-            ->with(['files', 'categories'])
+            ->with(['files.upload', 'categories'])
             ->orderBy('updated_at', 'desc')
             ->get();
 
@@ -44,6 +44,8 @@ class WatchfaceController extends Controller
      */
     public function store(Request $request)
     {
+        $user = $request->user();
+        
         $data = $request->validate([
             'title'           => 'required|string|max:255',
             'description'     => 'nullable|string',
@@ -52,7 +54,8 @@ class WatchfaceController extends Controller
             'type'            => 'required|in:watchface,app',
 
             // скидка
-            'discount_price'  => 'nullable|integer|min:0',
+            'discount_percent' => 'nullable|integer|min:1|max:99',
+            'discount_start_at' => 'nullable|date',
             'discount_end_at' => 'nullable|date',
 
             // категории
@@ -60,7 +63,41 @@ class WatchfaceController extends Controller
             'categories.*'    => 'integer|exists:categories,id',
         ]);
 
-        $watchface = $this->service->create($data, $request->user()->id);
+        // Валидация скидки (для нового watchface)
+        if (isset($data['discount_percent']) || isset($data['discount_start_at']) || isset($data['discount_end_at'])) {
+            $this->validateDiscount(null, $data, $data['price'] ?? 0);
+        }
+        
+        // Вычисляем discount_price из discount_percent
+        if (isset($data['discount_percent']) && isset($data['price'])) {
+            $discountPercent = (int)$data['discount_percent'];
+            $regularPrice = (int)$data['price'];
+            $data['discount_price'] = (int)round($regularPrice * (1 - $discountPercent / 100));
+        }
+
+        // Проверка прав на публикацию платных приложений
+        $isFree = $data['is_free'] ?? ($data['price'] == 0);
+        
+        if (!$isFree) {
+            // Проверяем, подтвержден ли разработчик администратором
+            if (!$user->developer_verified_by_admin) {
+                return response()->json([
+                    'error' => 'Для публикации платных приложений необходимо подтверждение администратором',
+                    'message' => 'Ваш аккаунт должен быть подтвержден администратором для публикации платных приложений.'
+                ], 403);
+            }
+
+            // Проверяем наличие платежных данных
+            $hasPaymentDetails = !empty($user->payment_details) && is_array($user->payment_details) && count($user->payment_details) > 0;
+            if (!$hasPaymentDetails) {
+                return response()->json([
+                    'error' => 'Необходимо указать платежные данные',
+                    'message' => 'Для публикации платных приложений необходимо указать платежные данные в профиле.'
+                ], 403);
+            }
+        }
+
+        $watchface = $this->service->create($data, $user->id);
 
         if (!empty($data['categories'])) {
             $watchface->categories()->sync($data['categories']);
@@ -122,8 +159,9 @@ class WatchfaceController extends Controller
     public function update(Request $request, $id)
     {
         $watchface = Watchface::findOrFail($id);
+        $user = $request->user();
 
-        if ($watchface->developer_id !== $request->user()->id) {
+        if ($watchface->developer_id !== $user->id) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
@@ -135,13 +173,50 @@ class WatchfaceController extends Controller
             'type'            => 'sometimes|in:watchface,app',
 
             // скидка
-            'discount_price'  => 'nullable|integer|min:0',
+            'discount_percent' => 'nullable|integer|min:1|max:99',
+            'discount_start_at' => 'nullable|date',
             'discount_end_at' => 'nullable|date',
 
             // категории
             'categories'      => 'nullable|array',
             'categories.*'    => 'integer|exists:categories,id',
         ]);
+
+        // Валидация скидки
+        if (isset($data['discount_percent']) || isset($data['discount_start_at']) || isset($data['discount_end_at'])) {
+            $this->validateDiscount($watchface, $data, $data['price'] ?? $watchface->price);
+        }
+        
+        // Вычисляем discount_price из discount_percent
+        if (isset($data['discount_percent'])) {
+            $discountPercent = (int)$data['discount_percent'];
+            $regularPrice = (int)($data['price'] ?? $watchface->price);
+            $data['discount_price'] = (int)round($regularPrice * (1 - $discountPercent / 100));
+        }
+
+        // Проверка прав на публикацию платных приложений (если цена меняется)
+        if (array_key_exists('price', $data) || array_key_exists('is_free', $data)) {
+            $isFree = $data['is_free'] ?? ($data['price'] == 0 ?? $watchface->is_free);
+            
+            if (!$isFree) {
+                // Проверяем, подтвержден ли разработчик администратором
+                if (!$user->developer_verified_by_admin) {
+                    return response()->json([
+                        'error' => 'Для публикации платных приложений необходимо подтверждение администратором',
+                        'message' => 'Ваш аккаунт должен быть подтвержден администратором для публикации платных приложений.'
+                    ], 403);
+                }
+
+                // Проверяем наличие платежных данных
+                $hasPaymentDetails = !empty($user->payment_details) && is_array($user->payment_details) && count($user->payment_details) > 0;
+                if (!$hasPaymentDetails) {
+                    return response()->json([
+                        'error' => 'Необходимо указать платежные данные',
+                        'message' => 'Для публикации платных приложений необходимо указать платежные данные в профиле.'
+                    ], 403);
+                }
+            }
+        }
 
         $updated = $this->service->update($watchface, $data);
 
@@ -295,5 +370,72 @@ class WatchfaceController extends Controller
             'success' => true,
             'file'    => $file
         ]);
+    }
+
+    /**
+     * Валидация скидки
+     */
+    private function validateDiscount(?Watchface $watchface, array $data, int $regularPrice)
+    {
+        // Если скидка не указана, пропускаем валидацию
+        if (!isset($data['discount_percent']) && !isset($data['discount_start_at']) && !isset($data['discount_end_at'])) {
+            return;
+        }
+
+        // Все поля обязательны для скидки
+        if (!isset($data['discount_percent']) || !isset($data['discount_start_at']) || !isset($data['discount_end_at'])) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'discount' => ['Для установки скидки необходимо указать процент скидки, дату начала и дату окончания.'],
+            ]);
+        }
+
+        $discountPercent = (int)$data['discount_percent'];
+        $discountStartAt = \Carbon\Carbon::parse($data['discount_start_at']);
+        $discountEndAt = \Carbon\Carbon::parse($data['discount_end_at']);
+        $now = \Carbon\Carbon::now();
+
+        // Проверка: процент скидки от 1 до 99
+        if ($discountPercent < 1 || $discountPercent > 99) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'discount_percent' => ['Процент скидки должен быть от 1 до 99.'],
+            ]);
+        }
+
+        // Проверка: дата начала должна быть в будущем или сегодня
+        if ($discountStartAt->isPast() && $discountStartAt->format('Y-m-d') !== $now->format('Y-m-d')) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'discount_start_at' => ['Дата начала скидки должна быть сегодня или в будущем.'],
+            ]);
+        }
+
+        // Проверка: дата окончания должна быть после даты начала
+        if ($discountEndAt->lte($discountStartAt)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'discount_end_at' => ['Дата окончания скидки должна быть после даты начала.'],
+            ]);
+        }
+
+        // Проверка: длительность скидки от 1 до 7 дней
+        $durationDays = $discountStartAt->diffInDays($discountEndAt, false);
+        if ($durationDays < 1 || $durationDays > 7) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'discount_end_at' => ['Скидка может действовать от 1 до 7 дней.'],
+            ]);
+        }
+
+        // Проверка частоты установки скидки (не чаще раза в месяц)
+        if ($watchface) {
+            $lastDiscountEndAt = $watchface->discount_end_at;
+            if ($lastDiscountEndAt && $lastDiscountEndAt->isPast()) {
+                // Проверяем, прошло ли 30 дней с момента окончания последней скидки
+                $daysSinceLastDiscount = $lastDiscountEndAt->diffInDays($now);
+                if ($daysSinceLastDiscount < 30) {
+                    $daysRemaining = 30 - $daysSinceLastDiscount;
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'discount' => ["Скидку можно устанавливать не чаще одного раза в месяц. С момента окончания последней скидки прошло {$daysSinceLastDiscount} дней. Следующую скидку можно установить через {$daysRemaining} дней."],
+                    ]);
+                }
+            }
+        }
     }
 }

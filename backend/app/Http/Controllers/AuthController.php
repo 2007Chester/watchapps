@@ -167,6 +167,9 @@ class AuthController extends Controller
             $logoUrl = $this->getFileUrl($user->logo->filename);
         }
 
+        // Проверяем, есть ли платежные данные
+        $hasPaymentDetails = !empty($user->payment_details) && is_array($user->payment_details) && count($user->payment_details) > 0;
+
         return response()->json([
             'id'           => $user->id,
             'name'         => $user->name,
@@ -179,6 +182,9 @@ class AuthController extends Controller
             'onboarding_completed' => $user->onboarding_completed,
             'verified'     => (bool)$user->email_verified_at,
             'email_verified' => (bool)$user->email_verified_at,
+            'developer_verified_by_admin' => (bool)$user->developer_verified_by_admin,
+            'has_payment_details' => $hasPaymentDetails,
+            'can_publish_paid_apps' => (bool)$user->developer_verified_by_admin && $hasPaymentDetails,
         ]);
     }
 
@@ -450,8 +456,15 @@ class AuthController extends Controller
             ]
         );
 
+        // Определяем базовый URL для ссылки восстановления
+        $baseUrl = $this->getBaseUrl($request);
+        
+        // Определяем, какой домен используется (dev или main)
+        $isDev = str_contains($baseUrl, 'dev.watchapps.ru');
+        $resetPath = $isDev ? '/dev/reset-password' : '/reset-password';
+        
         // Формируем ссылку для восстановления
-        $resetLink = "https://dev.watchapps.ru/dev/reset-password?token={$token}&email=" . urlencode($user->email);
+        $resetLink = "{$baseUrl}{$resetPath}?token={$token}&email=" . urlencode($user->email);
 
         // Отправляем email
         Mail::raw("Для восстановления пароля перейдите по ссылке:\n\n{$resetLink}\n\nСсылка действительна в течение 60 минут.", function($msg) use ($user) {

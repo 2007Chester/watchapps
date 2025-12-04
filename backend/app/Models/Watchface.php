@@ -13,6 +13,7 @@ class Watchface extends Model
         'description',
         'price',
         'discount_price',
+        'discount_start_at',
         'discount_end_at',
         'is_free',
         'version',
@@ -22,6 +23,7 @@ class Watchface extends Model
 
     protected $casts = [
         'is_free'         => 'boolean',
+        'discount_start_at' => 'datetime',
         'discount_end_at' => 'datetime',
     ];
 

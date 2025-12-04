@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 
 export default function LoginUserPage() {
@@ -86,7 +87,7 @@ export default function LoginUserPage() {
 
   return (
     <div className="flex justify-center py-4">
-      <div className="max-w-md w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-8 shadow-xl">
+      <div className="max-w-md w-full backdrop-blur-2xl bg-white/60 dark:bg-gray-900/60 border border-white/20 dark:border-gray-800/30 rounded-3xl p-8 shadow-xl shadow-black/10 dark:shadow-black/30">
 
         <h1 className="text-3xl text-gray-900 dark:text-white text-center mb-6 font-semibold">
           Вход в аккаунт
@@ -123,6 +124,16 @@ export default function LoginUserPage() {
           </div>
         </div>
 
+        {/* FORGOT PASSWORD LINK */}
+        <div className="mt-3 text-right">
+          <Link
+            href="/forgot-password"
+            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm underline transition-colors"
+          >
+            Забыли пароль?
+          </Link>
+        </div>
+
         {error && (
           <p className="text-red-600 dark:text-red-400 text-sm text-center mt-4">{error}</p>
         )}
@@ -142,9 +153,9 @@ export default function LoginUserPage() {
 
         <p className="text-gray-600 dark:text-gray-400 text-sm text-center mt-4">
           Нет аккаунта?{" "}
-          <a href="/register" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline transition-colors">
+          <Link href="/register" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline transition-colors">
             Создать аккаунт
-          </a>
+          </Link>
         </p>
       </div>
     </div>

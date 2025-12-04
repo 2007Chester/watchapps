@@ -182,3 +182,4 @@ tail -f /var/www/watchapps/backend/storage/logs/laravel.log
 - ✅ Ручная отправка через `/api/auth/send-verification`
 - ✅ Подтверждение через `/verify-email?token=...`
 
+

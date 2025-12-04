@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -215,5 +216,196 @@ class DeveloperOnboardingController extends Controller
             $port = $request->getPort();
             return $protocol . '://' . $host . ($port && $port !== 80 && $port !== 443 ? ':' . $port : '');
         }
+    }
+
+    /**
+     * Получить платежную информацию
+     */
+    public function getPaymentInfo(Request $request)
+    {
+        $user = $request->user();
+
+        if (!in_array('developer', $user->getRoleNames())) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        return response()->json([
+            'success' => true,
+            'payment_details' => $user->payment_details ?? null,
+            'contract_upload_id' => $user->contract_upload_id,
+            'contract_url' => $user->contract ? $this->getFileUrl($user->contract->filename) : null,
+            'payment_sent_for_approval' => $user->payment_sent_for_approval,
+            'payment_approved_by_admin' => $user->payment_approved_by_admin,
+        ]);
+    }
+
+    /**
+     * Сохранить платежную информацию
+     */
+    public function updatePaymentInfo(Request $request)
+    {
+        $user = $request->user();
+
+        if (!in_array('developer', $user->getRoleNames())) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $validated = $request->validate([
+            'card_number' => ['required', 'string', 'regex:/^[0-9\s]{13,19}$/'],
+            'full_name' => ['required', 'string', 'max:255'],
+            'phone' => ['required', 'string', 'regex:/^[\+]?[0-9\s\-\(\)]{10,20}$/'],
+            'registration_address' => ['required', 'string', 'max:500'],
+            'employment_type' => ['required', 'string', Rule::in(['ИП', 'самозанятый'])],
+            'data_verified' => ['nullable', 'boolean'],
+            'contract_upload_id' => ['nullable', 'integer', 'exists:uploads,id'],
+        ], [
+            'card_number.required' => 'Номер карты обязателен для заполнения.',
+            'card_number.regex' => 'Номер карты должен содержать от 13 до 19 цифр.',
+            'full_name.required' => 'ФИО обязательно для заполнения.',
+            'full_name.max' => 'ФИО не может быть длиннее 255 символов.',
+            'phone.required' => 'Номер телефона обязателен для заполнения.',
+            'phone.regex' => 'Номер телефона должен быть в правильном формате.',
+            'registration_address.required' => 'Адрес регистрации обязателен для заполнения.',
+            'registration_address.max' => 'Адрес регистрации не может быть длиннее 500 символов.',
+            'employment_type.required' => 'Тип занятости обязателен для заполнения.',
+            'employment_type.in' => 'Тип занятости должен быть "ИП" или "самозанятый".',
+        ]);
+
+        // Убираем пробелы из номера карты для хранения
+        $validated['card_number'] = preg_replace('/\s+/', '', $validated['card_number']);
+
+        // Сохраняем data_verified в payment_details
+        $paymentDetails = [
+            'card_number' => $validated['card_number'],
+            'full_name' => $validated['full_name'],
+            'phone' => $validated['phone'],
+            'registration_address' => $validated['registration_address'],
+            'employment_type' => $validated['employment_type'],
+            'data_verified' => $validated['data_verified'] ?? false,
+        ];
+
+        // Сохраняем платежную информацию
+        $user->payment_details = $paymentDetails;
+        
+        // Сохраняем contract_upload_id, если указан
+        if (isset($validated['contract_upload_id'])) {
+            $upload = Upload::find($validated['contract_upload_id']);
+            if ($upload && $upload->user_id !== $user->id) {
+                return response()->json([
+                    'message' => 'Upload does not belong to you',
+                ], 403);
+            }
+            $user->contract_upload_id = $validated['contract_upload_id'];
+        }
+        
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Платежная информация сохранена',
+            'payment_details' => $user->payment_details,
+            'contract_upload_id' => $user->contract_upload_id,
+            'contract_url' => $user->contract ? $this->getFileUrl($user->contract->filename) : null,
+        ]);
+    }
+
+    /**
+     * Отправить платежную информацию на подтверждение администратору
+     */
+    public function sendPaymentForApproval(Request $request)
+    {
+        $user = $request->user();
+
+        if (!in_array('developer', $user->getRoleNames())) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        // Проверяем, что все данные заполнены
+        if (!$user->payment_details || 
+            !isset($user->payment_details['card_number']) ||
+            !isset($user->payment_details['full_name']) ||
+            !isset($user->payment_details['phone']) ||
+            !isset($user->payment_details['registration_address']) ||
+            !isset($user->payment_details['employment_type'])) {
+            return response()->json([
+                'message' => 'Необходимо заполнить всю платежную информацию',
+            ], 422);
+        }
+
+        // Проверяем, что пользователь подтвердил данные
+        if (!isset($user->payment_details['data_verified']) || !$user->payment_details['data_verified']) {
+            return response()->json([
+                'message' => 'Необходимо подтвердить корректность введенных данных',
+            ], 422);
+        }
+
+        // Проверяем, что договор загружен
+        if (!$user->contract_upload_id) {
+            return response()->json([
+                'message' => 'Необходимо загрузить подписанный договор',
+            ], 422);
+        }
+
+        // Отправляем на подтверждение
+        $user->payment_sent_for_approval = true;
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Платежная информация отправлена на подтверждение администратору',
+        ]);
+    }
+
+    /**
+     * Смена пароля
+     */
+    public function changePassword(Request $request)
+    {
+        $user = $request->user();
+
+        if (!in_array('developer', $user->getRoleNames())) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $validated = $request->validate([
+            'current_password' => ['required', 'string'],
+            'new_password' => ['required', 'string', 'min:6'],
+            'new_password_confirmation' => ['required', 'string', 'same:new_password'],
+        ], [
+            'current_password.required' => 'Текущий пароль обязателен для заполнения.',
+            'new_password.required' => 'Новый пароль обязателен для заполнения.',
+            'new_password.min' => 'Новый пароль должен содержать минимум 6 символов.',
+            'new_password_confirmation.required' => 'Подтверждение пароля обязательно для заполнения.',
+            'new_password_confirmation.same' => 'Подтверждение пароля не совпадает с новым паролем.',
+        ]);
+
+        // Проверяем текущий пароль
+        if (!Hash::check($validated['current_password'], $user->password)) {
+            return response()->json([
+                'message' => 'Неверный текущий пароль.',
+                'errors' => [
+                    'current_password' => ['Неверный текущий пароль.'],
+                ],
+            ], 422);
+        }
+
+        // Проверяем, что новый пароль отличается от текущего
+        if (Hash::check($validated['new_password'], $user->password)) {
+            return response()->json([
+                'message' => 'Новый пароль должен отличаться от текущего.',
+                'errors' => [
+                    'new_password' => ['Новый пароль должен отличаться от текущего.'],
+                ],
+            ], 422);
+        }
+
+        // Обновляем пароль
+        $user->password = Hash::make($validated['new_password']);
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Пароль успешно изменен',
+        ]);
     }
 }

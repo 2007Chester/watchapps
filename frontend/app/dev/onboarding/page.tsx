@@ -8,8 +8,10 @@ export default function DeveloperOnboardingPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [errors, setErrors] = useState<any>({});
+  const [passwordErrors, setPasswordErrors] = useState<any>({});
 
   // Form fields
   const [email, setEmail] = useState("");
@@ -17,6 +19,12 @@ export default function DeveloperOnboardingPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoUploadId, setLogoUploadId] = useState<number | null>(null);
+  
+  // Password change fields
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirmation, setNewPasswordConfirmation] = useState("");
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
 
   // Load user data
   useEffect(() => {
@@ -210,6 +218,43 @@ export default function DeveloperOnboardingPage() {
     }
   }
 
+  async function handlePasswordChange(e: React.FormEvent) {
+    e.preventDefault();
+    setPasswordErrors({});
+    setChangingPassword(true);
+
+    try {
+      const response = await apiFetch("/dev/onboarding/change-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+          new_password_confirmation: newPasswordConfirmation,
+        }),
+      });
+
+      if (response.success) {
+        alert("Пароль успешно изменен");
+        setCurrentPassword("");
+        setNewPassword("");
+        setNewPasswordConfirmation("");
+        setShowPasswordForm(false);
+      }
+    } catch (error: any) {
+      console.error("Error changing password:", error);
+      if (error.errors) {
+        setPasswordErrors(error.errors);
+      } else {
+        alert(error.message || "Ошибка смены пароля");
+      }
+    } finally {
+      setChangingPassword(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -387,6 +432,141 @@ export default function DeveloperOnboardingPage() {
               </a>
             </div>
           )}
+
+          {/* Password Change Section */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Смена пароля
+              </h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPasswordForm(!showPasswordForm);
+                  if (showPasswordForm) {
+                    setCurrentPassword("");
+                    setNewPassword("");
+                    setNewPasswordConfirmation("");
+                    setPasswordErrors({});
+                  }
+                }}
+                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                {showPasswordForm ? "Скрыть" : "Изменить пароль"}
+              </button>
+            </div>
+
+            {showPasswordForm && (
+              <form onSubmit={handlePasswordChange} className="space-y-4">
+                {/* Current Password */}
+                <div>
+                  <label className="text-gray-700 dark:text-gray-300 text-sm font-medium block mb-2">
+                    Текущий пароль <span className="text-red-600 dark:text-red-400">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => {
+                      setCurrentPassword(e.target.value);
+                      setPasswordErrors({ ...passwordErrors, current_password: undefined });
+                    }}
+                    className={`w-full backdrop-blur-sm bg-white/50 dark:bg-gray-800/50 text-gray-900 dark:text-white border rounded-xl px-4 py-3 focus:ring-2 outline-none transition-all ${
+                      passwordErrors.current_password
+                        ? "border-red-400/50 focus:border-red-500 focus:ring-red-500/20"
+                        : "border-white/30 dark:border-gray-700/30 focus:border-blue-400/50 focus:ring-blue-500/20"
+                    }`}
+                    required
+                  />
+                  {passwordErrors.current_password && (
+                    <p className="text-red-600 dark:text-red-400 text-xs mt-1">
+                      {Array.isArray(passwordErrors.current_password) 
+                        ? passwordErrors.current_password[0] 
+                        : passwordErrors.current_password}
+                    </p>
+                  )}
+                </div>
+
+                {/* New Password */}
+                <div>
+                  <label className="text-gray-700 dark:text-gray-300 text-sm font-medium block mb-2">
+                    Новый пароль <span className="text-red-600 dark:text-red-400">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => {
+                      setNewPassword(e.target.value);
+                      setPasswordErrors({ ...passwordErrors, new_password: undefined });
+                    }}
+                    className={`w-full backdrop-blur-sm bg-white/50 dark:bg-gray-800/50 text-gray-900 dark:text-white border rounded-xl px-4 py-3 focus:ring-2 outline-none transition-all ${
+                      passwordErrors.new_password
+                        ? "border-red-400/50 focus:border-red-500 focus:ring-red-500/20"
+                        : "border-white/30 dark:border-gray-700/30 focus:border-blue-400/50 focus:ring-blue-500/20"
+                    }`}
+                    required
+                    minLength={6}
+                  />
+                  {passwordErrors.new_password && (
+                    <p className="text-red-600 dark:text-red-400 text-xs mt-1">
+                      {Array.isArray(passwordErrors.new_password) 
+                        ? passwordErrors.new_password[0] 
+                        : passwordErrors.new_password}
+                    </p>
+                  )}
+                  <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">
+                    Минимум 6 символов
+                  </p>
+                </div>
+
+                {/* Confirm New Password */}
+                <div>
+                  <label className="text-gray-700 dark:text-gray-300 text-sm font-medium block mb-2">
+                    Подтверждение нового пароля <span className="text-red-600 dark:text-red-400">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={newPasswordConfirmation}
+                    onChange={(e) => {
+                      setNewPasswordConfirmation(e.target.value);
+                      setPasswordErrors({ ...passwordErrors, new_password_confirmation: undefined });
+                    }}
+                    className={`w-full backdrop-blur-sm bg-white/50 dark:bg-gray-800/50 text-gray-900 dark:text-white border rounded-xl px-4 py-3 focus:ring-2 outline-none transition-all ${
+                      passwordErrors.new_password_confirmation
+                        ? "border-red-400/50 focus:border-red-500 focus:ring-red-500/20"
+                        : "border-white/30 dark:border-gray-700/30 focus:border-blue-400/50 focus:ring-blue-500/20"
+                    }`}
+                    required
+                    minLength={6}
+                  />
+                  {passwordErrors.new_password_confirmation && (
+                    <p className="text-red-600 dark:text-red-400 text-xs mt-1">
+                      {Array.isArray(passwordErrors.new_password_confirmation) 
+                        ? passwordErrors.new_password_confirmation[0] 
+                        : passwordErrors.new_password_confirmation}
+                    </p>
+                  )}
+                  {newPassword && newPasswordConfirmation && newPassword !== newPasswordConfirmation && (
+                    <p className="text-yellow-600 dark:text-yellow-400 text-xs mt-1">
+                      ⚠️ Пароли не совпадают
+                    </p>
+                  )}
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={changingPassword || !currentPassword || !newPassword || !newPasswordConfirmation || newPassword !== newPasswordConfirmation}
+                  className={`w-full py-3 rounded-xl text-white font-semibold transition-all ${
+                    changingPassword || !currentPassword || !newPassword || !newPasswordConfirmation || newPassword !== newPasswordConfirmation
+                      ? "bg-gray-400/50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 cursor-not-allowed backdrop-blur-sm"
+                      : "backdrop-blur-sm bg-gradient-to-r from-emerald-500/90 to-teal-500/90 dark:from-emerald-600/90 dark:to-teal-600/90 hover:from-emerald-600 hover:to-teal-600 dark:hover:from-emerald-500 dark:hover:to-teal-500 active:scale-95 shadow-lg shadow-emerald-500/30 hover:shadow-xl hover:shadow-emerald-500/40 border border-white/20"
+                  }`}
+                >
+                  {changingPassword ? "Изменение..." : "Изменить пароль"}
+                </button>
+              </form>
+            )}
+          </div>
 
           {/* Submit Button */}
           <button

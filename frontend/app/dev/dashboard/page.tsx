@@ -15,8 +15,10 @@ type Watchface = {
   type: string;
   files?: Array<{
     type: string;
+    url?: string;
     upload?: {
-      url: string;
+      url?: string;
+      filename?: string;
     };
   }>;
 };
@@ -47,7 +49,25 @@ export default function DevDashboardPage() {
 
   const getIconUrl = (watchface: Watchface): string => {
     const iconFile = watchface.files?.find((f) => f.type === "icon");
-    return iconFile?.upload?.url || "/placeholder_icon.png";
+    // Проверяем разные варианты структуры данных
+    if (iconFile) {
+      // Если есть url напрямую (из accessor модели)
+      if (iconFile.url) {
+        return iconFile.url;
+      }
+      // Если есть upload с url
+      if (iconFile.upload?.url) {
+        return iconFile.upload.url;
+      }
+      // Если есть upload с filename, формируем URL
+      if (iconFile.upload?.filename) {
+        const baseUrl = typeof window !== 'undefined' 
+          ? window.location.origin 
+          : 'https://dev.watchapps.ru';
+        return `${baseUrl}/storage/uploads/${iconFile.upload.filename}`;
+      }
+    }
+    return "/placeholder_icon.png";
   };
 
   const formatPrice = (watchface: Watchface): string => {
@@ -109,17 +129,43 @@ export default function DevDashboardPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Заголовок */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          Мои приложения и циферблаты
-        </h1>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-          Управляйте своими приложениями и циферблатами для Wear OS
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              Мои приложения и циферблаты
+            </h1>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              Управляйте своими приложениями и циферблатами для Wear OS
+            </p>
+          </div>
+          {/* Кнопка добавления приложения - показывается только если есть хотя бы одно приложение */}
+          {watchfaces.length > 0 && (
+            <Link
+              href="/dev/watchfaces/create"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-500 via-purple-500 to-purple-600 rounded-lg hover:from-blue-600 hover:via-purple-600 hover:to-purple-700 shadow-md hover:shadow-lg transition-all duration-200 whitespace-nowrap"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              <span>Добавить приложение</span>
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Пустое состояние */}
       {watchfaces.length === 0 && (
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-12 text-center">
+        <div className="backdrop-blur-2xl bg-white/60 dark:bg-gray-900/60 border border-white/20 dark:border-gray-800/30 rounded-2xl p-12 text-center shadow-2xl shadow-black/10 dark:shadow-black/30">
           <div className="max-w-md mx-auto">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
               <svg
@@ -155,7 +201,7 @@ export default function DevDashboardPage() {
 
       {/* Список приложений */}
       {watchfaces.length > 0 && (
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm">
+        <div className="backdrop-blur-2xl bg-white/60 dark:bg-gray-900/60 border border-white/20 dark:border-gray-800/30 rounded-2xl overflow-hidden shadow-2xl shadow-black/10 dark:shadow-black/30">
           <div className="divide-y divide-gray-200 dark:divide-gray-800">
             {watchfaces.map((watchface) => (
               <button

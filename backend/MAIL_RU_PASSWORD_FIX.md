@@ -101,3 +101,4 @@ $url = 'https://dev.watchapps.ru/verify-email?token=' . $token;
 Mail::to($user->email)->send(new VerifyEmail($user, $url));
 ```
 
+

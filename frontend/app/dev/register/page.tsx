@@ -303,7 +303,7 @@ export default function RegisterDeveloperPage() {
 
   return (
     <div className="flex justify-center py-4">
-      <div className="max-w-md w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-8 shadow-xl">
+      <div className="max-w-md w-full backdrop-blur-2xl bg-white/60 dark:bg-gray-900/60 border border-white/20 dark:border-gray-800/30 rounded-3xl p-8 shadow-xl shadow-black/10 dark:shadow-black/30">
         <h1 className="text-3xl text-gray-900 dark:text-white text-center mb-6 font-semibold">
           Регистрация разработчика
         </h1>

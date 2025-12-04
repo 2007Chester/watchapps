@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { apiLogin, apiFetch } from "@/lib/api";
 
 export default function LoginDeveloperPage() {
@@ -115,7 +116,7 @@ export default function LoginDeveloperPage() {
 
   return (
     <div className="flex justify-center py-4">
-      <div className="max-w-md w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-8 shadow-xl">
+      <div className="max-w-md w-full backdrop-blur-2xl bg-white/60 dark:bg-gray-900/60 border border-white/20 dark:border-gray-800/30 rounded-3xl p-8 shadow-xl shadow-black/10 dark:shadow-black/30">
 
         <h1 className="text-3xl text-gray-900 dark:text-white text-center mb-6 font-semibold">
           Вход разработчика
@@ -167,12 +168,12 @@ export default function LoginDeveloperPage() {
 
         {/* FORGOT PASSWORD LINK */}
         <div className="mt-3 text-right">
-          <a
+          <Link
             href="/dev/forgot-password"
             className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm underline transition-colors"
           >
             Забыли пароль?
-          </a>
+          </Link>
         </div>
 
         {error && (
@@ -194,9 +195,9 @@ export default function LoginDeveloperPage() {
 
         <p className="text-gray-600 dark:text-gray-400 text-sm text-center mt-4">
           Нет аккаунта?{" "}
-          <a href="/dev/register" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline transition-colors">
+          <Link href="/dev/register" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline transition-colors">
             Создать аккаунт разработчика
-          </a>
+          </Link>
         </p>
       </div>
     </div>

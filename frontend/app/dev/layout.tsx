@@ -11,6 +11,8 @@ export default function DevLayout({ children }: { children: React.ReactNode }) {
   const publicPaths = [
     "/dev/login",
     "/dev/register",
+    "/dev/forgot-password",
+    "/dev/reset-password",
     "/dev/verify",
     "/dev/verify/",
     "/dev/verify-email",
