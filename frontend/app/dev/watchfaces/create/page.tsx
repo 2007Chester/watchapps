@@ -23,6 +23,9 @@ type ApkInfo = {
   version: string | null;
   wearOsVersion: string | null;
   packageName: string | null;
+  minSdk: number | null;
+  maxSdk: number | null;
+  targetSdk: number | null;
 };
 
 export default function CreateWatchfacePage() {
@@ -56,6 +59,9 @@ export default function CreateWatchfacePage() {
     version: null,
     wearOsVersion: null,
     packageName: null,
+    minSdk: null,
+    maxSdk: null,
+    targetSdk: null,
   });
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -382,6 +388,9 @@ export default function CreateWatchfacePage() {
             version: parseData.version || null,
             wearOsVersion: parseData.wear_os_version || null,
             packageName: parseData.package_name || null,
+            minSdk: parseData.min_sdk || null,
+            maxSdk: parseData.max_sdk || null,
+            targetSdk: parseData.target_sdk || null,
           });
         }
       } catch (parseError) {
@@ -391,6 +400,9 @@ export default function CreateWatchfacePage() {
           version: null,
           wearOsVersion: null,
           packageName: null,
+          minSdk: null,
+          maxSdk: null,
+          targetSdk: null,
         });
       }
 
@@ -1166,34 +1178,62 @@ export default function CreateWatchfacePage() {
                   )}
                 </button>
                 {apkFile && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-700 dark:text-gray-300 text-sm">{apkFile.name}</span>
-                    {apkInfo.version && (
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="text-gray-600 dark:text-gray-400">
-                          Версия: <span className="font-semibold">{apkInfo.version}</span>
-                        </span>
-                        {apkInfo.wearOsVersion && (
-                          <span className="text-gray-600 dark:text-gray-400">
-                            Wear OS: <span className="font-semibold">{apkInfo.wearOsVersion}</span>
-                          </span>
+                  <div className="mt-2 p-4 backdrop-blur-sm bg-white/30 dark:bg-gray-800/30 border border-white/20 dark:border-gray-700/30 rounded-xl">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-gray-700 dark:text-gray-300 text-sm font-medium">{apkFile.name}</span>
+                        </div>
+                        {(apkInfo.version || apkInfo.minSdk !== null || apkInfo.targetSdk !== null) && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                            {apkInfo.version && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-600 dark:text-gray-400">Версия:</span>
+                                <span className="font-semibold text-gray-900 dark:text-white">{apkInfo.version}</span>
+                              </div>
+                            )}
+                            {apkInfo.minSdk !== null && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-600 dark:text-gray-400">Min SDK:</span>
+                                <span className="font-semibold text-gray-900 dark:text-white">{apkInfo.minSdk}</span>
+                              </div>
+                            )}
+                            {apkInfo.targetSdk !== null && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-600 dark:text-gray-400">Target SDK:</span>
+                                <span className="font-semibold text-gray-900 dark:text-white">{apkInfo.targetSdk}</span>
+                              </div>
+                            )}
+                            {apkInfo.maxSdk !== null && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-600 dark:text-gray-400">Max SDK:</span>
+                                <span className="font-semibold text-gray-900 dark:text-white">{apkInfo.maxSdk}</span>
+                              </div>
+                            )}
+                            {apkInfo.wearOsVersion && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-600 dark:text-gray-400">Wear OS:</span>
+                                <span className="font-semibold text-gray-900 dark:text-white">{apkInfo.wearOsVersion}</span>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setApkFile(null);
-                        setApkUploadId(null);
-                        setApkInfo({ version: null, wearOsVersion: null, packageName: null });
-                        if (apkInputRef.current) {
-                          apkInputRef.current.value = "";
-                        }
-                      }}
-                      className="text-red-500 hover:text-red-600 text-sm"
-                    >
-                      Удалить
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setApkFile(null);
+                          setApkUploadId(null);
+                          setApkInfo({ version: null, wearOsVersion: null, packageName: null, minSdk: null, maxSdk: null, targetSdk: null });
+                          if (apkInputRef.current) {
+                            apkInputRef.current.value = "";
+                          }
+                        }}
+                        className="text-red-500 hover:text-red-600 text-sm font-medium"
+                      >
+                        Удалить
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

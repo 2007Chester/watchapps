@@ -17,6 +17,11 @@ class Watchface extends Model
         'discount_end_at',
         'is_free',
         'version',
+        'min_sdk',
+        'target_sdk',
+        'max_sdk',
+        'wear_os_version',
+        'package_name',
         'type',
         'status',
     ];

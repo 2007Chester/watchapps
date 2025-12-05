@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Storage;
 class WatchfaceFile extends Model
 {
     protected $fillable = [
-        'watchface_id', 'upload_id', 'type', 'sort_order'
+        'watchface_id', 'upload_id', 'type', 'sort_order', 'version', 'min_sdk', 'target_sdk', 'max_sdk', 'wear_os_version'
     ];
 
     protected $appends = ['url'];

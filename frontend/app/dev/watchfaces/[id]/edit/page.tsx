@@ -23,6 +23,9 @@ type ApkInfo = {
   version: string | null;
   wearOsVersion: string | null;
   packageName: string | null;
+  minSdk: number | null;
+  maxSdk: number | null;
+  targetSdk: number | null;
 };
 
 export default function EditWatchfacePage() {
@@ -58,10 +61,27 @@ export default function EditWatchfacePage() {
   const [screenshots, setScreenshots] = useState<Screenshot[]>([]);
   const [apkFile, setApkFile] = useState<File | null>(null);
   const [apkUploadId, setApkUploadId] = useState<number | null>(null);
+  const [existingApkFileId, setExistingApkFileId] = useState<number | null>(null); // ID существующего APK файла для удаления
+  const [existingApkFiles, setExistingApkFiles] = useState<Array<{
+    id: number;
+    upload_id: number;
+    version: string | null;
+    min_sdk: number | null;
+    target_sdk: number | null;
+    max_sdk: number | null;
+    wear_os_version: string | null;
+    upload: {
+      original_name: string;
+      url: string;
+    };
+  }>>([]); // Все существующие APK файлы
   const [apkInfo, setApkInfo] = useState<ApkInfo>({
     version: null,
     wearOsVersion: null,
     packageName: null,
+    minSdk: null,
+    maxSdk: null,
+    targetSdk: null,
   });
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -167,11 +187,52 @@ export default function EditWatchfacePage() {
         const loadedScreenshots = await Promise.all(loadedScreenshotsPromises);
         setScreenshots(loadedScreenshots);
         
-        // APK
-        const apkFile = watchface.files.find((f: any) => f.type === "apk");
-        if (apkFile) {
-          setApkUploadId(apkFile.upload_id);
-          // Можно попробовать загрузить информацию об APK
+        // APK - загружаем все существующие APK файлы
+        const apkFiles = watchface.files.filter((f: any) => f.type === "apk");
+        if (apkFiles.length > 0) {
+          // Сохраняем все существующие APK файлы
+          setExistingApkFiles(apkFiles.map((f: any) => ({
+            id: f.id,
+            upload_id: f.upload_id,
+            version: f.version || null,
+            min_sdk: f.min_sdk || null,
+            target_sdk: f.target_sdk || null,
+            max_sdk: f.max_sdk || null,
+            wear_os_version: f.wear_os_version || null,
+            upload: f.upload || { original_name: '', url: '' },
+          })));
+          
+          // Устанавливаем первый APK как текущий (для обратной совместимости)
+          const firstApk = apkFiles[0];
+          setExistingApkFileId(firstApk.id);
+          setApkUploadId(firstApk.upload_id);
+          
+          // Пытаемся загрузить информацию об APK (берем самый новый)
+          try {
+            const parseData = await apiFetch("/upload/parse-apk", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                upload_id: firstApk.upload_id,
+              }),
+            });
+            
+            if (parseData && parseData.success) {
+              setApkInfo({
+                version: parseData.version || null,
+                wearOsVersion: parseData.wear_os_version || null,
+                packageName: parseData.package_name || null,
+                minSdk: parseData.min_sdk || null,
+                maxSdk: parseData.max_sdk || null,
+                targetSdk: parseData.target_sdk || null,
+              });
+            }
+          } catch (parseError) {
+            console.error("Error parsing existing APK:", parseError);
+            // Не критично, если не удалось распарсить
+          }
         }
       }
       
@@ -438,6 +499,45 @@ export default function EditWatchfacePage() {
     }
   }
 
+  async function handleDeleteApkFile(apkFileId: number) {
+    if (!watchfaceId) return;
+    
+    if (!confirm("Вы уверены, что хотите удалить этот APK файл?")) {
+      return;
+    }
+    
+    try {
+      await apiFetch(`/dev/watchfaces/${watchfaceId}/files/${apkFileId}`, {
+        method: "DELETE",
+      });
+      
+      // Удаляем файл из списка
+      setExistingApkFiles(existingApkFiles.filter(f => f.id !== apkFileId));
+      
+      // Если удалили текущий файл, сбрасываем состояние
+      if (existingApkFileId === apkFileId) {
+        setExistingApkFileId(null);
+        setApkUploadId(null);
+        setApkInfo({
+          version: null,
+          wearOsVersion: null,
+          packageName: null,
+          minSdk: null,
+          maxSdk: null,
+          targetSdk: null,
+        });
+      }
+      
+      // Перезагружаем данные watchface
+      await loadWatchface();
+      
+      alert("APK файл удален");
+    } catch (error: any) {
+      console.error("Error deleting APK file:", error);
+      alert(error.message || "Ошибка удаления APK файла");
+    }
+  }
+
   function removeScreenshot(index: number) {
     setScreenshots(screenshots.filter((_, i) => i !== index));
   }
@@ -489,6 +589,9 @@ export default function EditWatchfacePage() {
 
       setApkUploadId(uploadData.id);
       setApkFile(file);
+      // При загрузке нового APK файла, сбрасываем ID существующего файла
+      // (он будет удален при сохранении)
+      setExistingApkFileId(null);
 
       // Parse APK
       try {
@@ -507,6 +610,9 @@ export default function EditWatchfacePage() {
             version: parseData.version || null,
             wearOsVersion: parseData.wear_os_version || null,
             packageName: parseData.package_name || null,
+            minSdk: parseData.min_sdk || null,
+            maxSdk: parseData.max_sdk || null,
+            targetSdk: parseData.target_sdk || null,
           });
         }
       } catch (parseError) {
@@ -515,6 +621,9 @@ export default function EditWatchfacePage() {
           version: null,
           wearOsVersion: null,
           packageName: null,
+          minSdk: null,
+          maxSdk: null,
+          targetSdk: null,
         });
       }
 
@@ -604,7 +713,8 @@ export default function EditWatchfacePage() {
     if (screenshots.length > 8) {
       newErrors.screenshots = "Максимум 8 скриншотов";
     }
-    if (!apkUploadId) {
+    // Проверяем наличие APK файла (либо существующие, либо новый загруженный)
+    if (!apkUploadId && existingApkFiles.length === 0) {
       newErrors.apk = "APK файл обязателен";
     }
 
@@ -662,8 +772,9 @@ export default function EditWatchfacePage() {
           }
         });
 
-        // APK (только если был загружен новый)
-        if (apkUploadId && apkFile) {
+        // APK - если загружен новый файл (есть apkFile), добавляем его
+        // Backend сам определит, нужно ли удалять старый файл (если SDK одинаковый)
+        if (apkFile && apkUploadId) {
           filesToAttach.push({
             upload_id: apkUploadId,
             type: "apk",
@@ -798,7 +909,7 @@ export default function EditWatchfacePage() {
         <div className="backdrop-blur-2xl bg-white/60 dark:bg-gray-900/60 border border-white/20 dark:border-gray-800/30 rounded-2xl p-8 shadow-2xl shadow-black/10 dark:shadow-black/30">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
             Редактирование {appType === "app" ? "приложения" : "циферблата"}
-          </h1>
+      </h1>
 
           {/* App Type Selection */}
           <div className="mb-6">
@@ -884,7 +995,7 @@ export default function EditWatchfacePage() {
             <label className="text-gray-700 dark:text-gray-300 text-sm font-medium block mb-2">
               Название {appType === "app" ? "приложения" : "циферблата"} <span className="text-red-600 dark:text-red-400">*</span>
             </label>
-            <input
+          <input
               type="text"
               value={title}
               onChange={(e) => {
@@ -908,7 +1019,7 @@ export default function EditWatchfacePage() {
           <div className="mb-6">
             <label className="text-gray-700 dark:text-gray-300 text-sm font-medium block mb-2">
               Описание <span className="text-red-600 dark:text-red-400">*</span>
-            </label>
+        </label>
             <textarea
               value={description}
               onChange={(e) => {
@@ -936,7 +1047,7 @@ export default function EditWatchfacePage() {
             </label>
             <div className="flex gap-4">
               <label className="inline-flex items-center">
-                <input
+          <input
                   type="radio"
                   className="form-radio text-blue-600"
                   name="priceType"
@@ -944,9 +1055,9 @@ export default function EditWatchfacePage() {
                   onChange={() => setIsPaid(false)}
                 />
                 <span className="ml-2 text-gray-700 dark:text-gray-300">Бесплатное</span>
-              </label>
+        </label>
               <label className="inline-flex items-center">
-                <input
+          <input
                   type="radio"
                   className="form-radio text-blue-600"
                   name="priceType"
@@ -954,7 +1065,7 @@ export default function EditWatchfacePage() {
                   onChange={() => setIsPaid(true)}
                 />
                 <span className="ml-2 text-gray-700 dark:text-gray-300">Платное</span>
-              </label>
+        </label>
             </div>
           </div>
 
@@ -962,7 +1073,7 @@ export default function EditWatchfacePage() {
             <div className="mb-6">
               <label className="text-gray-700 dark:text-gray-300 text-sm font-medium block mb-2">
                 Цена (₽) <span className="text-red-600 dark:text-red-400">*</span>
-              </label>
+        </label>
               <input
                 type="number"
                 step="1"
@@ -1025,8 +1136,8 @@ export default function EditWatchfacePage() {
                 <span className="text-gray-700 dark:text-gray-300 text-sm font-medium">
                   Установить скидку
                 </span>
-              </label>
-              
+        </label>
+
               {hasDiscount && (
                 <div className="mt-4 space-y-4 p-4 backdrop-blur-sm bg-white/30 dark:bg-gray-800/30 border border-white/20 dark:border-gray-700/30 rounded-xl">
                   {/* Информация о последней скидке */}
@@ -1095,9 +1206,9 @@ export default function EditWatchfacePage() {
                           : "border-white/30 dark:border-gray-700/30 focus:border-blue-400/50 focus:ring-blue-500/20"
                       }`}
                       required={hasDiscount}
-                    />
-                  </div>
-                  
+        />
+      </div>
+
                   <div>
                     <label className="text-gray-700 dark:text-gray-300 text-sm font-medium block mb-2">
                       Дата окончания скидки <span className="text-red-600 dark:text-red-400">*</span>
@@ -1242,9 +1353,9 @@ export default function EditWatchfacePage() {
                       />
                     </svg>
                   </div>
-                </div>
-              ))}
-            </div>
+              </div>
+            ))}
+        </div>
             {screenshots.length > 0 && (
               <p className="text-gray-500 dark:text-gray-400 text-xs mt-2">
                 Перетащите скриншоты для изменения порядка
@@ -1253,7 +1364,7 @@ export default function EditWatchfacePage() {
             {errors.screenshots && (
               <p className="text-red-600 dark:text-red-400 text-xs mt-1">{errors.screenshots}</p>
             )}
-          </div>
+      </div>
 
           {/* APK */}
           <div className="mb-6">
@@ -1288,12 +1399,127 @@ export default function EditWatchfacePage() {
                 apkFile ? "Заменить APK" : "Загрузить APK"
               )}
             </button>
+            {/* Новый загруженный APK файл */}
             {apkFile && (
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                {apkFile.name}
-                {apkInfo.version && ` (версия: ${apkInfo.version})`}
-                {apkInfo.wearOsVersion && ` - ${apkInfo.wearOsVersion}`}
-              </p>
+              <div className="mt-2 p-4 backdrop-blur-sm bg-white/30 dark:bg-gray-800/30 border border-white/20 dark:border-gray-700/30 rounded-xl">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-gray-700 dark:text-gray-300 text-sm font-medium">{apkFile.name}</span>
+                      <span className="text-xs text-blue-600 dark:text-blue-400">(новый)</span>
+                    </div>
+                    {(apkInfo.version || apkInfo.minSdk !== null || apkInfo.targetSdk !== null) && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                        {apkInfo.version && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-600 dark:text-gray-400">Версия:</span>
+                            <span className="font-semibold text-gray-900 dark:text-white">{apkInfo.version}</span>
+                          </div>
+                        )}
+                        {apkInfo.minSdk !== null && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-600 dark:text-gray-400">Min SDK:</span>
+                            <span className="font-semibold text-gray-900 dark:text-white">{apkInfo.minSdk}</span>
+                          </div>
+                        )}
+                        {apkInfo.targetSdk !== null && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-600 dark:text-gray-400">Target SDK:</span>
+                            <span className="font-semibold text-gray-900 dark:text-white">{apkInfo.targetSdk}</span>
+                          </div>
+                        )}
+                        {apkInfo.maxSdk !== null && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-600 dark:text-gray-400">Max SDK:</span>
+                            <span className="font-semibold text-gray-900 dark:text-white">{apkInfo.maxSdk}</span>
+                          </div>
+                        )}
+                        {apkInfo.wearOsVersion && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-600 dark:text-gray-400">Wear OS:</span>
+                            <span className="font-semibold text-gray-900 dark:text-white">{apkInfo.wearOsVersion}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setApkFile(null);
+                      setApkUploadId(null);
+                      setApkInfo({ version: null, wearOsVersion: null, packageName: null, minSdk: null, maxSdk: null, targetSdk: null });
+                      if (apkInputRef.current) {
+                        apkInputRef.current.value = "";
+                      }
+                    }}
+                    className="text-red-500 hover:text-red-600 text-sm flex-shrink-0 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  >
+                    Удалить
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {/* Существующие APK файлы */}
+            {existingApkFiles.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">Загруженные APK файлы:</p>
+                {existingApkFiles.map((file) => (
+                  <div key={file.id} className="p-4 backdrop-blur-sm bg-white/30 dark:bg-gray-800/30 border border-white/20 dark:border-gray-700/30 rounded-xl">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-gray-700 dark:text-gray-300 text-sm font-medium">
+                            {file.upload?.original_name || `APK #${file.id}`}
+                          </span>
+                        </div>
+                        {(file.version || file.min_sdk !== null || file.target_sdk !== null || file.wear_os_version) && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                            {file.version && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-600 dark:text-gray-400">Версия:</span>
+                                <span className="font-semibold text-gray-900 dark:text-white">{file.version}</span>
+                              </div>
+                            )}
+                            {file.wear_os_version && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-600 dark:text-gray-400">Wear OS:</span>
+                                <span className="font-semibold text-gray-900 dark:text-white">{file.wear_os_version}</span>
+                              </div>
+                            )}
+                            {file.min_sdk !== null && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-600 dark:text-gray-400">Min SDK:</span>
+                                <span className="font-semibold text-gray-900 dark:text-white">{file.min_sdk}</span>
+                              </div>
+                            )}
+                            {file.target_sdk !== null && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-600 dark:text-gray-400">Target SDK:</span>
+                                <span className="font-semibold text-gray-900 dark:text-white">{file.target_sdk}</span>
+                              </div>
+                            )}
+                            {file.max_sdk !== null && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-600 dark:text-gray-400">Max SDK:</span>
+                                <span className="font-semibold text-gray-900 dark:text-white">{file.max_sdk}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteApkFile(file.id)}
+                        className="text-red-500 hover:text-red-600 text-sm flex-shrink-0 px-3 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
             {errors.apk && (
               <p className="text-red-600 dark:text-red-400 text-xs mt-1">{errors.apk}</p>
@@ -1343,7 +1569,7 @@ export default function EditWatchfacePage() {
                   }`}
                 >
                   {publishing ? "Публикация..." : "Опубликовать"}
-                </button>
+            </button>
               )}
               
               <button
@@ -1356,8 +1582,8 @@ export default function EditWatchfacePage() {
               >
                 Отмена
               </button>
-            </div>
-            
+      </div>
+
             {/* Кнопка удаления */}
             <button
               type="button"

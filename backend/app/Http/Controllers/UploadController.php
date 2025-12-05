@@ -128,61 +128,122 @@ class UploadController extends Controller
             ], 400);
         }
 
-        $filePath = Storage::disk('public')->path($upload->filename);
+        // Файл сохраняется в uploads/, поэтому нужно добавить эту папку к пути
+        $filePath = Storage::disk('public')->path('uploads/' . $upload->filename);
         
-        // Парсим APK используя aapt (если доступен) или простой парсинг
+        // Проверяем, существует ли файл
+        if (!file_exists($filePath)) {
+            // Пробуем без uploads/ (на случай, если путь уже содержит uploads)
+            $filePath = Storage::disk('public')->path($upload->filename);
+        }
+        
+        \Log::info('APK file path', [
+            'filename' => $upload->filename,
+            'file_path' => $filePath,
+            'file_exists' => file_exists($filePath),
+        ]);
+        
+        // Парсим APK используя Python скрипт (более надежный метод)
         $version = null;
         $wearOsVersion = null;
         $packageName = null;
-
-        // Попытка использовать aapt для парсинга
-        if (shell_exec('which aapt') !== null) {
-            $aaptOutput = shell_exec("aapt dump badging \"$filePath\" 2>/dev/null");
-            if ($aaptOutput) {
-                // Парсим версию
-                if (preg_match("/versionName='([^']+)'/", $aaptOutput, $matches)) {
-                    $version = $matches[1];
+        $minSdk = null;
+        $maxSdk = null;
+        $targetSdk = null;
+        
+        // Пытаемся использовать Python скрипт для парсинга (самый надежный метод)
+        $pythonScript = base_path('parse_apk.py');
+        if (file_exists($pythonScript)) {
+            $command = "python3 \"$pythonScript\" \"$filePath\" 2>&1";
+            \Log::info('Running APK parser', ['command' => $command, 'script_exists' => file_exists($pythonScript)]);
+            
+            $output = @shell_exec($command);
+            \Log::info('APK parser output', ['output' => $output, 'output_length' => strlen($output ?? '')]);
+            
+            if ($output) {
+                $parsedData = json_decode(trim($output), true);
+                \Log::info('APK parser parsed data', ['parsed_data' => $parsedData]);
+                
+                if ($parsedData && isset($parsedData['success']) && $parsedData['success']) {
+                    $version = $parsedData['version'] ?? null;
+                    $wearOsVersion = $parsedData['wear_os_version'] ?? null;
+                    $packageName = $parsedData['package_name'] ?? null;
+                    $minSdk = $parsedData['min_sdk'] ?? null;
+                    $maxSdk = $parsedData['max_sdk'] ?? null;
+                    $targetSdk = $parsedData['target_sdk'] ?? null;
+                    
+                    \Log::info('APK parser extracted values', [
+                        'version' => $version,
+                        'min_sdk' => $minSdk,
+                        'target_sdk' => $targetSdk,
+                        'max_sdk' => $maxSdk,
+                        'wear_os_version' => $wearOsVersion,
+                        'package_name' => $packageName,
+                    ]);
+                } else {
+                    \Log::warning('APK parser returned unsuccessful result', ['parsed_data' => $parsedData]);
                 }
-                // Парсим package name
-                if (preg_match("/package: name='([^']+)'/", $aaptOutput, $matches)) {
-                    $packageName = $matches[1];
+            } else {
+                \Log::warning('APK parser returned no output');
+            }
+        } else {
+            \Log::warning('APK parser script not found', ['script_path' => $pythonScript]);
+        }
+        
+        // Устанавливаем значения по умолчанию только если парсинг не дал результатов
+        // Если версия была успешно распарсена, но равна '1.0.0', это может быть реальная версия
+        // Поэтому устанавливаем по умолчанию только если version === null
+        if ($version === null) {
+            $version = '1.0.0';
+        }
+        if ($wearOsVersion === null) {
+            // Если min_sdk был распарсен, но wear_os_version нет, вычисляем его
+            // Используем min_sdk для определения минимальной совместимой версии Wear OS
+            $sdkLevel = $minSdk;
+            if ($sdkLevel !== null) {
+                if ($sdkLevel >= 35) {
+                    // API 35+ (Android 15+) → Wear OS 5.1+
+                    $wearOsVersion = 'Wear OS 5.1+';
+                } elseif ($sdkLevel >= 34) {
+                    // API 34 (Android 14) → Wear OS 5.0+
+                    $wearOsVersion = 'Wear OS 5.0+';
+                } elseif ($sdkLevel >= 30) {
+                    // API 30-33 (Android 11-13) → Wear OS 4.0+
+                    $wearOsVersion = 'Wear OS 4.0+';
+                } elseif ($sdkLevel >= 28) {
+                    // API 28-29 (Android 9-10) → Wear OS 3.0+
+                    $wearOsVersion = 'Wear OS 3.0+';
+                } elseif ($sdkLevel >= 25) {
+                    // API 25-27 (Android 7.1-8.1) → Wear OS 2.0+
+                    $wearOsVersion = 'Wear OS 2.0+';
+                } elseif ($sdkLevel >= 23) {
+                    // API 23-24 (Android 6.0-7.0) → Wear OS 1.0+
+                    $wearOsVersion = 'Wear OS 1.0+';
+                } else {
+                    $wearOsVersion = 'Not compatible';
                 }
-                // Парсим минимальную версию SDK (для определения совместимости Wear OS)
-                if (preg_match("/sdkVersion:'([^']+)'/", $aaptOutput, $matches)) {
-                    $minSdk = (int)$matches[1];
-                    // Wear OS обычно требует API 25+ (Android 7.1)
-                    $wearOsVersion = $minSdk >= 25 ? 'Wear OS 2.0+' : ($minSdk >= 23 ? 'Wear OS 1.0+' : 'Not compatible');
-                }
+            } else {
+                $wearOsVersion = 'Wear OS 5.0+';
             }
         }
 
-        // Если aapt недоступен, используем простой парсинг через zip
-        if (!$version) {
-            try {
-                $zip = new \ZipArchive();
-                if ($zip->open($filePath) === true) {
-                    $manifestContent = $zip->getFromName('AndroidManifest.xml');
-                    if ($manifestContent) {
-                        // Простой парсинг бинарного AndroidManifest.xml
-                        // Это упрощенная версия, для полного парсинга нужна библиотека
-                        // Пока возвращаем заглушку
-                        $version = '1.0.0';
-                        $wearOsVersion = 'Wear OS 2.0+';
-                    }
-                    $zip->close();
-                }
-            } catch (\Exception $e) {
-                // Если парсинг не удался, возвращаем заглушку
-                $version = '1.0.0';
-                $wearOsVersion = 'Wear OS 2.0+';
-            }
-        }
-
+        \Log::info('APK parsing result', [
+            'version' => $version,
+            'min_sdk' => $minSdk,
+            'target_sdk' => $targetSdk,
+            'max_sdk' => $maxSdk,
+            'wear_os_version' => $wearOsVersion,
+            'package_name' => $packageName,
+        ]);
+        
         return response()->json([
             'success' => true,
-            'version' => $version ?? '1.0.0',
-            'wear_os_version' => $wearOsVersion ?? 'Wear OS 2.0+',
+            'version' => $version,
+            'wear_os_version' => $wearOsVersion,
             'package_name' => $packageName,
+            'min_sdk' => $minSdk,
+            'max_sdk' => $maxSdk,
+            'target_sdk' => $targetSdk,
         ]);
     }
 

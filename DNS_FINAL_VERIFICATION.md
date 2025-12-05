@@ -64,3 +64,4 @@ $(if dig @8.8.8.8 +short TXT watchapps.ru | grep -q "81.177.139.192"; then echo 
 $(if dig @8.8.8.8 +short TXT watchapps.ru | grep -q "81.177.139.192"; then echo "Все основные DNS записи настроены правильно. Система готова к работе!"; else echo "Обновите SPF запись, добавив IP 81.177.139.192"; fi)
 
 
+

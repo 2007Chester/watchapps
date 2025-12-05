@@ -145,11 +145,33 @@ class WatchfaceController extends Controller
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
-        $this->service->attachFiles($watchface, $data['files']);
+        try {
+            $this->service->attachFiles($watchface, $data['files']);
+        } catch (\Exception $e) {
+            // Если ошибка связана с несовпадением package_name
+            if (str_contains($e->getMessage(), 'Package name mismatch')) {
+                return response()->json([
+                    'error' => 'Package name mismatch',
+                    'message' => 'Этот APK файл принадлежит другому приложению. Package name должен совпадать с первым загруженным APK файлом.'
+                ], 400);
+            }
+            
+            // Другие ошибки
+            \Log::error('Error attaching files', [
+                'watchface_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'error' => 'Error attaching files',
+                'message' => $e->getMessage()
+            ], 500);
+        }
 
         return response()->json([
             'success'   => true,
-            'watchface' => $watchface->load('files')
+            'watchface' => $watchface->fresh()->load('files')
         ]);
     }
 

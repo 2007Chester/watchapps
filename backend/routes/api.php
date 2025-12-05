@@ -103,7 +103,11 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
     | PURCHASE API
     |--------------------------------------------------------------------------
     */
-    Route::post('/purchase', [PurchaseController::class, 'purchase']);
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/purchase', [PurchaseController::class, 'purchase']);
+        // Получить APK файл для установки (после покупки)
+        Route::get('/watchfaces/{id}/apk', [PurchaseController::class, 'getApk']);
+    });
 
     /*
     |--------------------------------------------------------------------------

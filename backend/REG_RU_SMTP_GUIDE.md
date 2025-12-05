@@ -183,3 +183,4 @@ tail -f /var/www/watchapps/backend/storage/logs/laravel.log
 - ✅ Подтверждение через `/verify-email?token=...`
 
 
+

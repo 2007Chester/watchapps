@@ -82,3 +82,4 @@ echo "3. Протестировать отправку:"
 echo "   echo 'Test' | mail -s 'Test' your-email@example.com"
 
 
+

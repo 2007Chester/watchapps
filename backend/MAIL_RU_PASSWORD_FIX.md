@@ -102,3 +102,4 @@ Mail::to($user->email)->send(new VerifyEmail($user, $url));
 ```
 
 
+

@@ -10,14 +10,13 @@ class CategorySeeder extends Seeder
     public function run(): void
     {
         $categories = [
-            ['name' => 'Analog',       'slug' => 'analog',      'sort_order' => 1],
-            ['name' => 'Digital',      'slug' => 'digital',     'sort_order' => 2],
-            ['name' => 'Premium',      'slug' => 'premium',     'sort_order' => 3],
-            ['name' => 'Animated',     'slug' => 'animated',    'sort_order' => 4],
-            ['name' => 'Classic',      'slug' => 'classic',     'sort_order' => 5],
-            ['name' => 'Sport',        'slug' => 'sport',       'sort_order' => 6],
-            ['name' => 'AOD Friendly', 'slug' => 'aod-friendly','sort_order' => 7],
-            ['name' => 'Free',         'slug' => 'free',        'sort_order' => 8],
+            ['name' => 'Аналоговые',   'slug' => 'analogovye',   'sort_order' => 1],
+            ['name' => 'Цифровые',     'slug' => 'cifrovye',     'sort_order' => 2],
+            ['name' => 'Гибридные',    'slug' => 'gibridnye',   'sort_order' => 3],
+            ['name' => 'Анимационные', 'slug' => 'animacionnye', 'sort_order' => 4],
+            ['name' => 'Минимальзм',   'slug' => 'minimalizm',   'sort_order' => 5],
+            ['name' => 'Классические', 'slug' => 'klassicheskie','sort_order' => 6],
+            ['name' => 'Спортивные',   'slug' => 'sportivnye',   'sort_order' => 7],
         ];
 
         foreach ($categories as $category) {
@@ -26,6 +25,10 @@ class CategorySeeder extends Seeder
                 $category
             );
         }
+        
+        // Удаляем старые категории, которых нет в новом списке
+        $newSlugs = array_column($categories, 'slug');
+        Category::whereNotIn('slug', $newSlugs)->delete();
     }
 }
 
