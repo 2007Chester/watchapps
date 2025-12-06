@@ -41,4 +41,24 @@ class Watchface extends Model
     {
         return $this->belongsToMany(Category::class, 'watchface_category');
     }
+
+    public function sales()
+    {
+        return $this->hasMany(WatchfaceSale::class);
+    }
+
+    public function views()
+    {
+        return $this->hasMany(WatchfaceView::class);
+    }
+
+    public function downloads()
+    {
+        return $this->hasMany(WatchfaceDownload::class);
+    }
+
+    public function ratings()
+    {
+        return $this->hasMany(WatchfaceRating::class);
+    }
 }

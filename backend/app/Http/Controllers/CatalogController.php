@@ -9,18 +9,30 @@ use Illuminate\Http\Request;
 class CatalogController extends Controller
 {
     /**
+     * Получить все категории
+     */
+    public function categories()
+    {
+        return Category::orderBy('sort_order')->get();
+    }
+
+    /**
      * Топ продаж (позже добавим сортировку по покупкам)
      */
     public function top(Request $request)
     {
-        $query = Watchface::where('status', 'published');
+        $query = Watchface::where('status', 'published')
+            ->with(['files.upload', 'categories']);
         
         // Фильтрация по совместимости с часами
         $query = $this->filterByCompatibility($query, $request);
         
         return $query->orderBy('price', 'desc')
             ->take(20)
-            ->get();
+            ->get()
+            ->map(function ($watchface) {
+                return $this->formatWatchface($watchface);
+            });
     }
 
     /**
@@ -28,14 +40,18 @@ class CatalogController extends Controller
      */
     public function new(Request $request)
     {
-        $query = Watchface::where('status', 'published');
+        $query = Watchface::where('status', 'published')
+            ->with(['files.upload', 'categories']);
         
         // Фильтрация по совместимости с часами
         $query = $this->filterByCompatibility($query, $request);
         
         return $query->orderBy('created_at', 'desc')
             ->take(20)
-            ->get();
+            ->get()
+            ->map(function ($watchface) {
+                return $this->formatWatchface($watchface);
+            });
     }
 
     /**
@@ -49,12 +65,42 @@ class CatalogController extends Controller
             ->where(function($q) {
                 $q->whereNull('discount_end_at')
                   ->orWhere('discount_end_at', '>=', now());
-            });
+            })
+            ->with(['files.upload', 'categories']);
         
         // Фильтрация по совместимости с часами
         $query = $this->filterByCompatibility($query, $request);
         
-        return $query->get();
+        return $query->get()
+            ->map(function ($watchface) {
+                return $this->formatWatchface($watchface);
+            });
+    }
+
+    /**
+     * Поиск
+     */
+    public function search(Request $request)
+    {
+        $query = Watchface::where('status', 'published')
+            ->with(['files.upload', 'categories']);
+        
+        $searchTerm = $request->input('q');
+        if ($searchTerm) {
+            $query->where(function($q) use ($searchTerm) {
+                $q->where('title', 'like', '%' . $searchTerm . '%')
+                  ->orWhere('description', 'like', '%' . $searchTerm . '%');
+            });
+        }
+        
+        // Фильтрация по совместимости с часами
+        $query = $this->filterByCompatibility($query, $request);
+        
+        return $query->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($watchface) {
+                return $this->formatWatchface($watchface);
+            });
     }
 
     /**
@@ -65,12 +111,16 @@ class CatalogController extends Controller
         $category = Category::where('slug', $slug)->firstOrFail();
 
         $query = $category->watchfaces()
-            ->where('status', 'published');
+            ->where('status', 'published')
+            ->with(['files.upload', 'categories']);
         
         // Фильтрация по совместимости с часами
         $query = $this->filterByCompatibility($query, $request);
         
-        return $query->get();
+        return $query->get()
+            ->map(function ($watchface) {
+                return $this->formatWatchface($watchface);
+            });
     }
 
     /**
@@ -117,5 +167,39 @@ class CatalogController extends Controller
         }
         
         return $query;
+    }
+
+    /**
+     * Форматирование данных watchface для API
+     */
+    private function formatWatchface($watchface)
+    {
+        // Получаем иконку
+        $iconFile = $watchface->files->firstWhere('type', 'icon');
+        $iconUrl = $iconFile ? $iconFile->url : null;
+
+        // Получаем баннер
+        $bannerFile = $watchface->files->firstWhere('type', 'banner');
+        $bannerUrl = $bannerFile ? $bannerFile->url : null;
+
+        return [
+            'id' => $watchface->id,
+            'title' => $watchface->title,
+            'slug' => $watchface->slug,
+            'description' => $watchface->description,
+            'price' => $watchface->price,
+            'discount_price' => $watchface->discount_price,
+            'is_free' => $watchface->is_free,
+            'type' => $watchface->type,
+            'icon' => $iconUrl,
+            'banner' => $bannerUrl,
+            'categories' => $watchface->categories->map(function ($category) {
+                return [
+                    'id' => $category->id,
+                    'name' => $category->name,
+                    'slug' => $category->slug,
+                ];
+            }),
+        ];
     }
 }

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "./create-symlinks.sh",
     "start": "next start"
   },
   "dependencies": {

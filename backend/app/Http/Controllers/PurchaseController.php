@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Watchface;
 use App\Models\WatchfaceSale;
+use App\Models\WatchfaceDownload;
 
 class PurchaseController extends Controller
 {
@@ -121,6 +122,15 @@ class PurchaseController extends Controller
         if (!$apkFile || !$apkFile->upload) {
             return response()->json(['error' => 'APK file not found'], 404);
         }
+        
+        // Логируем скачивание
+        WatchfaceDownload::create([
+            'watchface_id' => $watchface->id,
+            'user_id' => $request->user()->id,
+            'watchface_file_id' => $apkFile->id,
+            'ip' => $request->ip(),
+            'user_agent' => substr((string) $request->userAgent(), 0, 2000),
+        ]);
         
         return response()->json([
             'success' => true,

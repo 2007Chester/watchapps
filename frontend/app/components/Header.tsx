@@ -196,7 +196,14 @@ export default function Header() {
           {/* Логотип и название */}
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push(isDevDomain ? "/dev/dashboard" : "/")}
+              onClick={() => {
+                if (isDevDomain) {
+                  // Если авторизован → дашборд, иначе → главная
+                  router.push(isAuthenticated ? "/dev/dashboard" : "/dev");
+                } else {
+                  router.push("/");
+                }
+              }}
               className="flex items-center gap-2 hover:opacity-80 transition-opacity"
             >
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600 flex items-center justify-center shadow-lg hover:shadow-xl transition-shadow">
@@ -286,15 +293,6 @@ export default function Header() {
                       <button
                         onClick={() => {
                           setShowMenu(false);
-                          router.push(isDevDomain ? "/dev/dashboard" : "/");
-                        }}
-                        className="w-full px-4 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                      >
-                        Главная
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowMenu(false);
                           router.push(isDevDomain ? "/dev/onboarding" : "/profile");
                         }}
                         className="w-full px-4 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -310,17 +308,6 @@ export default function Header() {
                       >
                         Платежные данные
                       </button>
-                      {isDevDomain && (
-                        <button
-                          onClick={() => {
-                            setShowMenu(false);
-                            router.push("/dev/dashboard");
-                          }}
-                          className="w-full px-4 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                        >
-                          Статистика
-                        </button>
-                      )}
                       <div className="border-t border-gray-200 dark:border-gray-800 my-1"></div>
                       <button
                         onClick={handleLogout}

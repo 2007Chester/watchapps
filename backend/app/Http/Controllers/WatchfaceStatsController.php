@@ -6,6 +6,8 @@ use App\Models\Watchface;
 use App\Models\WatchfaceView;
 use App\Models\WatchfaceClick;
 use App\Models\WatchfaceSale;
+use App\Models\WatchfaceDownload;
+use App\Models\WatchfaceRating;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -54,9 +56,12 @@ class WatchfaceStatsController extends Controller
      */
     public function stats(Request $request, $id)
     {
-        $watchface = Watchface::findOrFail($id);
+        $watchface = Watchface::with(['files.upload'])->findOrFail($id);
 
-        // TODO: здесь можно добавить проверку, что текущий разработчик владеет этим watchface
+        // Проверяем, что текущий разработчик владеет этим watchface
+        if ($watchface->developer_id !== $request->user()->id) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
 
         $period = $request->query('period', '30d');
 
@@ -84,9 +89,24 @@ class WatchfaceStatsController extends Controller
             ->where('created_at', '>=', $from)
             ->count();
 
+        $downloadsCount = WatchfaceDownload::where('watchface_id', $watchface->id)
+            ->where('created_at', '>=', $from)
+            ->count();
+
+        $revenue = WatchfaceSale::where('watchface_id', $watchface->id)
+            ->where('created_at', '>=', $from)
+            ->sum('price');
+
         $conversion = $clicksCount > 0
             ? $salesCount / $clicksCount
             : 0;
+
+        // Рейтинг - средний рейтинг всех отзывов
+        $ratings = WatchfaceRating::where('watchface_id', $watchface->id)->get();
+        $ratingCount = $ratings->count();
+        $rating = $ratingCount > 0
+            ? round($ratings->avg('rating'), 1)
+            : null;
 
         // Графики по дням
         $viewsByDay = WatchfaceView::where('watchface_id', $watchface->id)
@@ -107,6 +127,18 @@ class WatchfaceStatsController extends Controller
             ->groupBy('day')
             ->pluck('cnt', 'day');
 
+        $downloadsByDay = WatchfaceDownload::where('watchface_id', $watchface->id)
+            ->where('created_at', '>=', $from)
+            ->selectRaw('DATE(created_at) as day, COUNT(*) as cnt')
+            ->groupBy('day')
+            ->pluck('cnt', 'day');
+
+        $revenueByDay = WatchfaceSale::where('watchface_id', $watchface->id)
+            ->where('created_at', '>=', $from)
+            ->selectRaw('DATE(created_at) as day, SUM(price) as total')
+            ->groupBy('day')
+            ->pluck('total', 'day');
+
         // Строим массив по каждому дню периода
         $chart = [];
         $cursor = $from->clone();
@@ -119,16 +151,40 @@ class WatchfaceStatsController extends Controller
                 'views'  => (int) ($viewsByDay[$day] ?? 0),
                 'clicks' => (int) ($clicksByDay[$day] ?? 0),
                 'sales'  => (int) ($salesByDay[$day] ?? 0),
+                'downloads' => (int) ($downloadsByDay[$day] ?? 0),
+                'revenue' => (float) ($revenueByDay[$day] ?? 0),
             ];
 
             $cursor->addDay();
         }
 
+        // Получаем иконку циферблата
+        $iconFile = $watchface->files()
+            ->where('type', 'icon')
+            ->with('upload')
+            ->first();
+        
+        // Получаем URL иконки
+        $iconUrl = null;
+        if ($iconFile && $iconFile->upload) {
+            // Используем метод getUrlAttribute из WatchfaceFile
+            $iconUrl = $iconFile->url;
+        }
+
         return response()->json([
+            'watchface' => [
+                'id' => $watchface->id,
+                'title' => $watchface->title,
+                'icon' => $iconUrl,
+            ],
             'views'      => $viewsCount,
             'clicks'     => $clicksCount,
             'sales'      => $salesCount,
+            'downloads'  => $downloadsCount,
+            'revenue'    => (float) $revenue,
             'conversion' => $conversion,
+            'rating'     => $rating,
+            'rating_count' => $ratingCount,
             'chart'      => $chart,
         ]);
     }

@@ -8,6 +8,9 @@ use App\Http\Controllers\WatchfaceController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\DeveloperOnboardingController;
+use App\Http\Controllers\DeveloperStatsController;
+use App\Http\Controllers\DeveloperReviewsController;
+use App\Http\Controllers\RatingController;
 use Laravel\Sanctum\Http\Controllers\CsrfCookieController;
 
 /*
@@ -121,7 +124,13 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
               // Категории
               Route::get('/categories', [\App\Http\Controllers\CategoryController::class, 'index']);
 
-              // Статистика
+              // Общая статистика разработчика
+              Route::get('/statistics', [DeveloperStatsController::class, 'index']);
+
+              // Отзывы на приложения разработчика
+              Route::get('/reviews', [DeveloperReviewsController::class, 'index']);
+
+              // Статистика по циферблату
               Route::get('/watchfaces/{id}/stats', [WatchfaceStatsController::class, 'stats']);
 
               // Список всех watchfaces текущего разработчика
@@ -165,12 +174,24 @@ Route::get("/auth/verify/{token}", [AuthController::class, "verifyEmail"]);
 |--------------------------------------------------------------------------
 */
 
+Route::get('/catalog/categories', [CatalogController::class, 'categories']);
+Route::get('/catalog/search', [CatalogController::class, 'search']);
 Route::get('/catalog/top',       [CatalogController::class, 'top']);
 Route::get('/catalog/new',       [CatalogController::class, 'new']);
 Route::get('/catalog/discounts', [CatalogController::class, 'discounts']);
 Route::get('/catalog/category/{slug}', [CatalogController::class, 'byCategory']);
 
 Route::get('/watchface/{slug}',  [CatalogController::class, 'show']);
+
+// Отзывы (публичные - получение, авторизованные - создание)
+Route::get('/watchface/{id}/ratings', [RatingController::class, 'index']);
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/watchface/{id}/ratings', [RatingController::class, 'store']);
+    Route::delete('/watchface/{id}/ratings/{ratingId}', [RatingController::class, 'destroy']);
+    // Ответы разработчика на отзывы
+    Route::post('/watchface/{id}/ratings/{ratingId}/reply', [RatingController::class, 'reply']);
+    Route::delete('/watchface/{id}/ratings/{ratingId}/reply', [RatingController::class, 'deleteReply']);
+});
 
 /*
 |--------------------------------------------------------------------------
